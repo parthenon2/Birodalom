@@ -1,0 +1,16 @@
+{
+  "verzio": "1.9",
+  "jatek": "https://IDE-JON-A-CIMED/index.html",
+  "megjegyzes": "Launcher, frissítés, hat készülő nemzet",
+  "zeneUrl": "https://IDE-JON-A-CIMED/zene/",
+  "zene": [
+    "15-old-kingdom.mp3",
+    "19-mozart-vonosnegyes.mp3",
+    "20-csatadobok.mp3",
+    "cercles-nouvelles.mp3",
+    "kalozok.mp3",
+    "marines.mp3",
+    "power-of-nature.mp3",
+    "village-consort.mp3"
+  ]
+}
