@@ -24,9 +24,9 @@
       "nev": "Birodalom",
       "alcim": "négy évszázad · tizenkét nemzet",
       "verzio": "2.3",
-      "jatek": "https://IDE-JON-A-CIMED/index.html",
+      "jatek": "https://parthenon2.github.io/Birodalom/index.html",
       "exe": "Birodalom",
-      "zeneUrl": "https://IDE-JON-A-CIMED/zene/",
+      "zeneUrl": "https://parthenon2.github.io/Birodalom/zene/",
       "zene": [
         "15-old-kingdom.mp3",
         "19-mozart-vonosnegyes.mp3",
@@ -41,10 +41,10 @@
     {
       "_megjegyzes": "PÉLDA egy másik játékra. Töröld, vagy írd át a sajátodra.",
       "id": "masik",
-      "nev": "Másik játék",
-      "alcim": "rövid leírás a kép alá",
+      "nev": "Rouge like",
+      "alcim": "Katakombák rejtelmei",
       "verzio": "1.0",
-      "jatek": "https://IDE-JON-A-CIMED/masik/index.html"
+      "jatek": "https://parthenon2.github.io/Rougelike/"
     }
   ]
 }
