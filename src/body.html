@@ -1,0 +1,531 @@
+</style>
+</head>
+<body>
+
+<!-- Nyelvválasztó.
+
+     A menüN KÍVÜL áll, közvetlenül a body gyereke. Az #menu görgethető
+     doboz (`overflow-y:auto` + `-webkit-overflow-scrolling:touch`), és
+     iOS-en az ilyen ős magához köti a rögzített helyzetű elemeket — ezért
+     csúszott a választó a menü közepére, a cím alá.
+
+     FONTOS: ennek a blokknak a </style> UTÁN kell állnia. Amíg előtte volt,
+     a böngésző a jelölést a stíluslap szövegének olvasta, így a gomb és a
+     lista soha nem került be a DOM-ba — a nyelvválasztó emiatt nem
+     jelent meg és nem működött. -->
+<div id="langBox">
+  <button id="langBtn"><i></i><span id="langName"></span><b>▾</b></button>
+  <div id="langList"></div>
+</div>
+
+<canvas id="cv" tabindex="0" role="application"
+  aria-label="Játéktér. C: billentyűkurzor, Tab: csoportváltás, F1: billentyűk listája."></canvas>
+<div id="live" class="sr" aria-live="polite"></div>
+
+<!-- ===================== KEZELŐFELÜLET ===================== -->
+<div id="hud">
+
+  <!-- Uralkodói portré -->
+  <div id="rulerBox" class="panel">
+    <div id="portraitRing"><canvas id="portrait" width="176" height="176"></canvas></div>
+    <div id="rulerText">
+      <div id="rulerName">—</div>
+      <div id="rulerTitle">—</div>
+      <div id="rulerNation">—</div>
+      <div id="rulerBonus">—</div>
+    </div>
+  </div>
+
+  <!-- Korszak és nyersanyagok, felül középen -->
+  <div id="topCenter">
+    <div id="eraLabel" class="panel"><b id="eraName">15. század</b><em id="eraSub">Késő középkor</em></div>
+  <div id="resBar" class="panel">
+    <div class="res"><div class="dot" style="background:#8a6234"></div><div><span data-t="nyFa">Fa</span><b id="rWood">0</b><span class="bal" id="rWoodRate"></span></div></div>
+    <div class="res"><div class="dot" style="background:#9aa0a6"></div><div><span data-t="nyKo">Kő</span><b id="rStone">0</b><span class="bal" id="rStoneRate"></span></div></div>
+    <div class="res"><div class="dot" style="background:#d4af37"></div><div><span data-t="nyArany">Arany</span><b id="rGold">0</b><span class="bal" id="rGoldRate"></span></div></div>
+    <div class="res" id="resCoal" style="display:none"><div class="dot" style="background:#3b3a3c"></div><div><span data-t="nySzen">Szén</span><b id="rCoal">0</b></div></div>
+    <div class="res"><div class="dot" style="background:#c1553f"></div><div><span data-t="nyElelem">Élelem</span><b id="rFood">0</b></div></div>
+    <div class="res"><div class="dot" style="background:#6f8fb5"></div><div><span data-t="nySereg">Sereg</span><b id="rPop">0</b></div></div>
+  </div>
+  </div>
+
+  <!-- Korszak -->
+  <div id="eraBox" class="panel">
+    <button id="ageBtn" data-t="korszakvaltas">Korszakváltás</button>
+    <div id="ageCost">—</div>
+    <div id="objective"></div>
+  </div>
+
+  <!-- Gyorsgombok -->
+  <div id="bio" class="panel">
+    <div class="bioTop"><b id="bioName"></b><button id="bioClose" data-ttl="bezar" aria-label="Bezár">×</button></div>
+    <div id="bioMeta"></div>
+    <p id="bioLead"></p>
+    <p id="bioText"></p>
+  </div>
+
+  <div id="quick">
+    <button class="qb panel" id="btnMenu" aria-expanded="false" data-ttl="gyMenu" title="Menü">☰</button>
+    <button class="qb panel" id="btnBase" data-ttl="gyBazis" title="Ugrás a bázisra">⌂</button>
+    <button class="qb panel" id="btnArmy" data-ttl="gySereg" title="Sereg kijelölése">⚔</button>
+    <button class="qb panel" id="btnWork" data-ttl="gyMunkas" title="Munkások kijelölése">⛏</button>
+    <button class="qb panel" id="btnStop" data-ttl="gyStop" title="Parancsok törlése">✕</button>
+    <input type="file" id="loadFile" accept="application/json,.json" class="sr">
+    <input type="file" id="replayFile" accept="application/json,.json" class="sr">
+  </div>
+  <div id="dropMenu" class="panel">
+    <button class="mi" id="miQSave" data-t="gyorsMentes">Gyors mentés<span>F5</span></button>
+    <button class="mi" id="miQLoad" data-t="gyorsBetoltes">Gyors betöltés<span>F9</span></button>
+    <div class="msep"></div>
+    <button class="mi" id="miSave" data-t="mentes">Mentés</button>
+    <button class="mi" id="miExport" data-t="mentesFajlba">Mentés fájlba (átvitelhez)</button>
+    <button class="mi" id="miReplay" data-t="visszajatszasMent">Visszajátszás mentése</button>
+    <button class="mi" id="miLoad" data-t="betoltesFajl">Betöltés fájlból</button>
+    <div class="msep"></div>
+    <button class="mi" id="miPause" data-t="szunet">Szünet<span>P</span></button>
+    <button class="mi" id="miKeys" data-t="billentyuk">Billentyűk<span>F1</span></button>
+    <button class="mi" id="miCB" data-t="szinvak">Színvakbarát mód<span id="cbState">ki</span></button>
+    <button class="mi" id="miSfx" data-t="hangeffekt">Hangeffektek<span id="sfxState">be</span></button>
+    <button class="mi" id="miMus" data-t="zene">Zene<span id="musState">nem indult</span></button>
+    <div class="msep"></div>
+    <button class="mi danger" id="miExit" data-t="foMenube">Kilépés a főmenübe</button>
+    <div id="miVer"></div>
+  </div>
+
+  <!-- Minitérkép -->
+  <div id="miniBox" class="panel"><canvas id="mini" width="216" height="162"></canvas></div>
+
+  <!-- Parancsok -->
+  <!-- Vándorló zsoldosok ajánlata -->
+  <div id="offerBox" class="panel">
+    <div id="offerText"></div>
+    <div id="offerBtns">
+      <button id="offerYes" data-t="elfogadom">Elfogadom</button>
+      <button id="offerNo" data-t="elutasitom">Elutasítom</button>
+    </div>
+    <div id="offerBar"><i></i></div>
+  </div>
+  <!-- Fotómód sávja -->
+  <!-- Oktatómód lépései -->
+  <div id="tutorBox" class="panel">
+    <div id="tutorStep"></div>
+    <div id="tutorTitle"></div>
+    <div id="tutorText"></div>
+    <button id="tutorSkip" data-t="kihagyom">Kihagyom</button>
+  </div>
+  <div id="portMenu"></div>
+  <!-- Flottasáv: a hajóid listája, koppintásra odaugrik a kamera -->
+  <div id="fleetBar" class="panel"></div>
+  <!-- Hírnév: a jobb szélen álló mérő, alatta a kegyelemlevél -->
+  <div id="fameBar" class="panel">
+    <div class="fmT" data-t="hirnev">HÍRNÉV</div>
+    <div class="fmTube"><i id="fmFill"></i></div>
+    <div class="fmV" id="fmVal">0</div>
+    <button id="fmPardon" data-t="kegyelem">Kegyelemlevél</button>
+  </div>
+  <!-- PONTTÁBLA — csak kettőnél több félnél látszik. A .panel osztály
+       kell hozzá, különben a #hud átereszti rajta a kattintást. -->
+  <div id="pontTabla" class="panel">
+    <div class="ptFej"><span data-t="ptCim">Felek</span><button id="ptZar" aria-label="—">—</button></div>
+    <div id="ptSorok"></div>
+    <div id="ptKod"></div>
+  </div>
+  <!-- A város sorsa: elfoglalás vagy kifosztás. A .panel osztály kell,
+       különben a #hud átereszti rajta a kattintást. -->
+  <div id="varosBox" class="panel">
+    <div id="varosCim"></div>
+    <div id="varosSzoveg"></div>
+    <div class="varosGombok">
+      <button id="varosFoglal"></button>
+      <button id="varosFoszt"></button>
+    </div>
+  </div>
+  <div id="photoBar">
+    <button id="phSave" data-t="kepMentese">Kép mentése</button>
+    <button id="phExit" data-t="kilepes">Kilépés</button>
+  </div>
+  <div id="cmdBox" class="panel">
+    <button id="cmdClose" data-ttl="bezaras2" title="Bezárás — kijelölés és építés megszakítása" aria-label="Bezárás">✕</button>
+    <div class="grp" id="grpBuild"><div class="cmdTitle" data-t="cimEpites">Építés — munkások</div>
+      <div class="row" id="buildRow"></div></div>
+    <div class="grp" id="grpTrain"><div class="cmdTitle" data-t="cimKikepzes">Kiképzés</div>
+      <div class="row" id="trainRow"></div></div>
+    <div class="grp" id="grpMarket"><div class="cmdTitle" data-t="cimPiac">Piac — árfolyam</div>
+      <div class="row" id="marketRow"></div></div>
+    <div class="grp" id="grpAmmo"><div class="cmdTitle" data-t="toltet">Töltet</div>
+      <div class="row" id="ammoRow"></div></div>
+    <div class="grp" id="grpHero"><div class="cmdTitle" data-t="cimHos">Hős</div>
+      <!-- A hős AKTÍV képessége. Akkor jelenik meg, ha él a hős; a
+           gombon látszik a visszaszámlálás is. -->
+      <button class="btn" id="btnKialtas" data-t="hosKialtas">Csatakiáltás</button>
+      <div class="row"><button class="btn" id="btnRevive"></button></div></div>
+    <div class="grp" id="grpSpy"><div class="cmdTitle" data-t="cimKem">Kémkedés</div>
+      <div class="row"><button class="btn" id="btnSpy"></button></div></div>
+    <div class="grp" id="grpForm"><div class="cmdTitle" data-t="alakzat">Alakzat</div>
+      <div class="row" id="formRow">
+        <button class="btn" id="fmLine" data-t="vonal" data-t2="alVonalAl">Vonal <kbd>7</kbd><small>lövész +10% lőtáv</small></button>
+        <button class="btn" id="fmWedge" data-t="ek" data-t2="alEkAl">Ék <kbd>8</kbd><small>+12% roham</small></button>
+        <button class="btn" id="fmSquare" data-t="negyszog" data-t2="alNegyszogAl">Négyszög <kbd>9</kbd><small>+2 páncél, lassabb</small></button>
+      </div></div>
+    <div class="grp" id="grpStance"><div class="cmdTitle" data-t="harciAllas">Harci állás</div>
+      <div class="row" id="stanceRow">
+        <button class="btn" id="stAggro" data-t="tamado" data-t2="allTamadoAl">Támadó <kbd>1</kbd><small>célt fog és üldöz</small></button>
+        <button class="btn" id="stHold" data-t="tartsd" data-t2="allTartsdAl">Tartsd <kbd>2</kbd><small>nem mozdul, csak lő</small></button>
+        <button class="btn" id="stFlee" data-t="visszavonul" data-t2="allVisszaAl">Visszavonul <kbd>3</kbd><small>sebesülten elhátrál</small></button>
+      </div></div>
+    <div class="grp" id="grpSel"><div class="cmdTitle" data-t="cimEpulet">Épület</div>
+      <div class="row" id="selRow"></div></div>
+    <div class="grp" id="grpUpg"><div class="cmdTitle" data-t="cimFejlesztes">Fejlesztés — akadémia</div>
+      <div class="row" id="upgRow"></div></div>
+
+
+    <div id="selInfo" data-t="nincsKijeloles">Nincs kijelölés</div>
+  </div>
+
+  <div id="toast"></div>
+  <div id="pauseTag" class="panel" data-t="szunetTag">SZÜNET — P a folytatáshoz</div>
+</div>
+
+<!-- ===================== KEZDŐMENÜ ===================== -->
+<!-- Uralkodó bemutatása a játszma elején. FONTOS: a menün KÍVÜL van,
+     mert a menü elrejtésekor különben ez is eltűnne. -->
+<div id="intro">
+  <div id="introCard" class="panel">
+    <canvas id="introPortrait" width="360" height="360"></canvas>
+    <div id="introText">
+      <div id="introNation"></div>
+      <h2 id="introName"></h2>
+      <div id="introTitle"></div>
+      <div id="introMeta"></div>
+      <p id="introBio"></p>
+      <div id="introBonus"></div>
+    </div>
+  </div>
+  <button id="introGo" data-t="kezdodjek">Kezdődjék</button>
+</div>
+
+<div id="menu">
+  <canvas id="menuBg"></canvas>
+  <div id="verTag"></div>
+  <h1>Biro<em>dalom</em></h1>
+  <div class="lead">1400 — 1945</div>
+
+  <!-- Főmenü -->
+  <!-- FŐMENÜ. Hat sor, semmi több: a részletek egy szinttel lejjebb
+       kerültek. Korábban az Új játék, a Folytatás, a Csata és a
+       Visszajátszás mind itt sorakozott, és a lényeg — az egy- és
+       többjátékos közötti választás — elveszett köztük. -->
+  <div id="mainMenu">
+    <button class="mbtn" id="mEgy" data-t="egyjatekos">Egy játékos</button>
+    <button class="mbtn" id="mNet" data-t="tobbjatekos">Többjátékos</button>
+    <button class="mbtn" id="mAch" data-t="teljesitmeny">Teljesítmények</button>
+    <button class="mbtn" id="mSet" data-t="beallitasok">Beállítások</button>
+    <button class="mbtn" id="mTutor" data-t="oktatomod">Oktatómód</button>
+    <button class="mbtn" id="mQuit" data-t="kilepes">Kilépés</button>
+    <div id="menuNote"></div>
+  </div>
+
+  <!-- EGY JÁTÉKOS -->
+  <div id="egyPanel" class="mpanel">
+    <h2 data-t="egyjatekos">Egy játékos</h2>
+    <button class="mbtn" id="mNew" data-t="ujJatek">Új játék</button>
+    <button class="mbtn" id="mLoad" data-t="korabbiBetoltes">Korábbi betöltése</button>
+    <button class="mbtn" id="mFolyt" data-t="mFolytatas">Folytatás</button>
+    <button class="mbtn" id="mReplayLoad" data-t="visszajatszasNyit">Visszajátszás megnyitása</button>
+    <!-- Asztali alkalmazásban a mentések valódi fájlok; ez a gomb
+         megnyitja a mappájukat. Böngészőben rejtve marad, mert ott nincs
+         mit megnyitni. -->
+    <button class="mbtn" id="mMappa" data-t="mentesMappa" style="display:none">Mentések mappája</button>
+    <div id="egyNote"></div>
+    <button class="back" data-back="1" data-t="vissza">Vissza</button>
+  </div>
+
+  <!-- Új játék -->
+  <div id="newPanel" class="mpanel">
+    <!-- KALÓZMÓD. Eddig csak egyszemélyes hadjáratban volt elérhető, pedig
+         a hálózati protokoll már régóta vitte a jelölést — csak a szoba
+         küldött mindig `false`-ot. -->
+    <div class="msec" data-t="szMod">Mód</div>
+    <div class="seg" id="szobaMod"></div>
+    <div class="msec" data-t="szNehezseg">Nehézség</div>
+    <div id="diffs"></div>
+    <div id="diffDesc"></div>
+    <div class="msec" data-t="szKorszak">Kezdő korszak</div>
+    <div id="eras"></div>
+    <div id="eraPick"></div>
+    <div class="msec" data-t="szTaj">Táj</div>
+    <div id="maps"></div>
+    <div id="mapDesc"></div>
+    <div class="msec" data-t="szJatekmod">Játékmód</div>
+    <div id="modes">
+      <button class="mode on" id="modeFree" data-t="szabadJatek">Szabad játék</button>
+      <button class="mode" id="modeCamp" data-t="hadjarat">Hadjárat</button><button class="mode" id="modePirate" data-t="kalozok">Kalózok</button>
+    </div>
+    <div class="msec" data-t="szNemzet">Nemzet</div>
+    <div id="nations"></div>
+    <div id="missions"></div>
+    <div id="bonusInfo" data-t="valasszNemzetInfo">Válassz nemzetet — mindegyik saját nemzeti előnnyel játszik.</div>
+    <button id="startBtn" data-t="valasszNemzetet" disabled>Válassz nemzetet</button>
+    <button class="back" data-back="1" data-t="vissza">Vissza</button>
+  </div>
+
+  <!-- Teljesítmények -->
+  <div id="achPanel" class="mpanel">
+    <div class="msec" data-t="teljesitmeny">Teljesítmények <span id="achCount"></span></div>
+    <div id="achList"></div>
+    <button class="back" data-back="1">Vissza</button>
+  </div>
+
+  <!-- SZOBA — több fél egy térképen.
+       Helyben ma egy ember és legfeljebb négy bot fér el. Hálózaton
+       ugyanez a képernyő fogadja majd a hat emberig terjedő társaságot,
+       ezért a helyek szerkezete már arra van felkészítve. -->
+  <div id="szobaPanel" class="mpanel">
+    <h2 data-t="csata">Csata — több fél</h2>
+    <div class="szobaSugo" data-t="csataSugo">Mindenki saját várossal, saját készlettel indul. Az azonos csapatszámú felek szövetségesek; külön számmal mindenki mindenki ellen.</div>
+
+    <div id="szobaKod" style="display:none"></div>
+    <div class="msec" data-t="szHelyek">Helyek <span id="szobaDb"></span></div>
+    <div id="szobaLista"></div>
+    <div class="szobaGombok">
+      <button class="mbtn" id="szobaBot" data-t="szBotHozzaad">Bot hozzáadása</button>
+    </div>
+
+    <div class="msec" data-t="szNehezseg">Nehézség</div>
+    <div class="seg" id="szobaDiff"></div>
+    <div class="msec" data-t="szKorszak">Kezdő korszak</div>
+    <div class="seg" id="szobaEra"></div>
+    <div class="msec" data-t="szTaj">Táj</div>
+    <select id="szobaMap"></select>
+
+    <button id="szobaStart" data-t="kezdes">Kezdés</button>
+    <button class="back" data-back="1" data-t="vissza">Vissza</button>
+  </div>
+
+  <!-- Beállítások -->
+  <!-- =====================================================================
+       TÖBBJÁTÉKOS
+
+       Régen egyetlen hosszú oszlop volt: név, helyi csata, szervercím,
+       szoba nyitása, kód, lekérdezés, lista, állapot, súgó. A LÉNYEG — a
+       nyitott szobák listája — leghátul állt, holott a legtöbben épp azt
+       keresik. A címsor és a gombok között nem volt semmi, ami elárulta
+       volna, hol tart az ember.
+
+       Az új felépítés két útra bontja, és mindkettőt keretbe teszi:
+
+         HELYI    — egy gomb, hálózat nélkül, azonnal indul
+         HÁLÓZAT  — cím + állapotjelző, alatta a SZOBÁK, végül a
+                    kevésbé gyakori út: szobanyitás és kód
+
+       A név legfelül marad, mert mindkét úthoz kell, és a szobák
+       listájának így már nem kell megvárnia semmit.
+       ===================================================================== -->
+  <div id="netPanel" class="mpanel">
+    <h2 data-t="tobbjatekos">Többjátékos</h2>
+
+    <!-- A NÉV. Ezt látják a többiek a szobában, a ponttáblán és a
+         kilépési üzenetekben. Név nélkül nem lehet csatlakozni: a
+         „Vendég 2” senkinek nem mond semmit egy hat fős szobában. -->
+    <div class="netSor netNevSor">
+      <label data-t="netNeved">A neved</label>
+      <input id="netNev" type="text" maxlength="24" spellcheck="false" data-tph="netNevedPh" placeholder="pl. Bence">
+    </div>
+
+    <!-- ---------- HELYI ---------- -->
+    <div class="netDoboz">
+      <div class="netCim" data-t="netHelyiCim">Helyi játék</div>
+      <p class="netLeiras" data-t="netHelyiLeiras">Egy gépen, hálózat nélkül. Te és legfeljebb kilenc bot ugyanazon a térképen.</p>
+      <button class="mbtn" id="mSzoba" data-t="csataHelyi">Helyi csata — botok ellen</button>
+    </div>
+
+    <!-- ---------- HÁLÓZAT ---------- -->
+    <div class="netDoboz">
+      <div class="netCim" data-t="netHalozatCim">Hálózati játék</div>
+
+      <div class="netSor">
+        <label data-t="szerverCime">Szerver címe</label>
+        <input id="netCim" type="text" value="ws://127.0.0.1:8787" spellcheck="false">
+      </div>
+      <!-- Az állapot egy pötty a cím alatt: zöld ha kapcsolódtunk, sárga
+           amíg keres, piros ha nem sikerült. Így nem kell külön sort
+           olvasni ahhoz, hogy lásd, hol tartasz. -->
+      <div class="netAllapotSor">
+        <i id="netPont" class="netPont"></i>
+        <span id="netAllapot" data-t="nincsKapcsolat">Nincs kapcsolat.</span>
+      </div>
+
+      <!-- A SZOBÁK a fő út: ezért áll elöl és nagyban. -->
+      <button class="mbtn netFo" id="netLista" data-t="netSzobakat">Nyitott szobák lekérdezése</button>
+      <div id="netSzobak"></div>
+
+      <!-- A ritkább utak külön, halványabban. -->
+      <div class="netMasodlagos">
+        <button class="mbtn" id="netNyit" data-t="szobaNyitasa">Szoba nyitása</button>
+        <!-- EGY mező: ide a teljes meghívó is beilleszthető
+             (cim.trycloudflare.com#4DGM), de a puszta négybetűs kód is jó,
+             ha a szervercím már be van írva fölötte. -->
+        <div class="netSor">
+          <input id="netKod" type="text" data-tph="meghivoPh" placeholder="MEGHÍVÓ VAGY KÓD" maxlength="120" spellcheck="false">
+          <button class="mbtn" id="netCsatl" data-t="csatlakozas">Csatlakozás</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="netSugo" data-t="netSugo" data-tfull="1">A szerver a saját géped: <code>node szerver.js</code> — a cím <code>ws://</code> előtaggal és a kapuval együtt kell. A házigazda kap egy négybetűs kódot; ezt add meg a másik gépen.</div>
+    <button class="mbtn back" data-back="1" data-t="vissza">Vissza</button>
+  </div>
+  <!-- BEÁLLÍTÁSOK — három fül. Korábban egyetlen hosszú lista volt, és a
+       „Irányítás” fejezet alatt grafikai kapcsolók sorakoztak (fényhatások,
+       időjárás, képméret). Most mindegyik oda kerül, ahová való. -->
+  <div id="setPanel" class="mpanel">
+    <div class="setTabs" id="setTabs">
+      <button data-tab="graf" class="on" data-t="setGrafika">Grafika</button>
+      <button data-tab="hang" data-t="setHangok">Hangok</button>
+      <button data-tab="iran" data-t="setIranyitas">Irányítás</button>
+    </div>
+
+    <!-- ---------- GRAFIKA ---------- -->
+    <div class="setTab on" id="tabGraf">
+      <div class="setRow"><span data-t="fenyhatasok" data-t2="fenyhatasokAl">Fényhatások<em>kontaktárnyék, fényirány, ragyogás, szemcse</em></span>
+        <div class="seg" id="segPost">
+          <button data-v="1" class="on" data-t="be">be</button><button data-v="0" data-t="ki">ki</button>
+        </div></div>
+      <div class="setRow"><span data-t="idojaras" data-t2="idojarasAl">Időjárás<em>eső és hó, hatással a látásra</em></span>
+        <div class="seg" id="segWeather">
+          <button data-v="1" class="on" data-t="be">be</button><button data-v="0" data-t="ki">ki</button>
+        </div></div>
+      <div class="setRow"><span data-t="nappalEjjel" data-t2="nappalEjjelAl">Nappal és éjszaka<em>éjjel feleakkora látótáv</em></span>
+        <div class="seg" id="segDay">
+          <button data-v="1" class="on" data-t="be">be</button><button data-v="0" data-t="ki">ki</button>
+        </div></div>
+      <div class="setRow"><span data-t="diszRetegek" data-t2="diszRetegekAl">Díszítő rétegek<em>füst, vízcsillogás</em></span>
+        <div class="seg" id="segFx">
+          <button data-v="auto" class="on" data-t="automatikus">automatikus</button><button data-v="high" data-t="mindig">mindig</button><button data-v="low" data-t="ki">ki</button>
+        </div></div>
+      <div class="setRow"><span data-t="szinvak" data-t2="szinvakAl">Színvakbarát mód<em>kék és narancs csapatszín</em></span>
+        <div class="seg" id="segCb"><button data-v="0" class="on" data-t="ki">ki</button><button data-v="1" data-t="be">be</button></div></div>
+      <!-- Teljes képernyő. Csak az asztali alkalmazásban van értelme, ezért
+           alapból rejtett; a 04b-viewsize.js mutatja meg, ha a burok jelen van. -->
+      <div class="setRow" id="rowFull" style="display:none">
+        <span data-t="teljesKepernyo" data-t2="teljesKepernyoAl">Teljes képernyő<em>az egész kijelzőt kitölti — F11</em></span>
+        <div class="seg" id="segFull">
+          <button data-v="1" data-t="be">be</button><button data-v="0" class="on" data-t="ki">ki</button>
+        </div></div>
+      <div class="setRow"><span data-t="kepmeret" data-t2="kepmeretAl">Képméret<em>a játéktér felbontása</em></span>
+        <select id="selRes"></select></div>
+      <div class="setRow"><span data-t="nezet" data-t2="nezetAl">Nézet<em>elrendezés a kijelzőhöz</em></span>
+        <div class="seg" id="segUi">
+          <button data-v="auto" class="on" data-t="automatikus">automatikus</button><button data-v="desktop" data-t="szamitogep">számítógép</button><button data-v="phone" data-t="telefon">telefon</button>
+        </div></div>
+    </div>
+
+    <!-- ---------- HANGOK ---------- -->
+    <div class="setTab" id="tabHang">
+      <div class="setRow"><span data-t="hangeffekt">Hangeffektek</span>
+        <div class="seg" id="segSfx"><button data-v="1" class="on" data-t="be">be</button><button data-v="0" data-t="ki">ki</button></div></div>
+      <div class="setRow"><span data-t="hangero">Hangerő</span><input type="range" id="volSfx" min="0" max="100" value="100"></div>
+      <div class="setRow"><span data-t="zene">Zene</span>
+        <div class="seg" id="segMus"><button data-v="1" class="on" data-t="be">be</button><button data-v="0" data-t="ki">ki</button></div></div>
+      <div class="setRow"><span data-t="zeneHangero">Zene hangereje</span><input type="range" id="volMus" min="0" max="100" value="45"></div>
+    </div>
+
+    <!-- ---------- IRÁNYÍTÁS ---------- -->
+    <div class="setTab" id="tabIran">
+      <div class="setRow"><span data-t="gorgetes" data-t2="gorgetesAl">Görgetés<em>egérgörgő / trackpad</em></span>
+        <div class="seg" id="segScroll">
+          <button data-v="auto" class="on" data-t="automatikus">automatikus</button><button data-v="pan" data-t="mozgatas">mozgatás</button><button data-v="zoom" data-t="nagyitas">nagyítás</button>
+        </div></div>
+      <div class="setRow"><span data-t="kameraSeb">Kamera sebessége</span>
+        <div class="seg" id="segCam">
+          <button data-v="0.6" data-t="lassu">lassú</button><button data-v="1" class="on" data-t="kozepes">közepes</button><button data-v="1.6" data-t="gyors">gyors</button>
+        </div></div>
+      <div class="setRow"><span data-t="szelGorgetes" data-t2="szelGorgetesAl">Görgetés a képernyő szélén<em>egérrel</em></span>
+        <div class="seg" id="segEdge"><button data-v="1" class="on" data-t="be">be</button><button data-v="0" data-t="ki">ki</button></div></div>
+      <div class="setRow"><span data-t="billKurzor" data-t2="billKurzorAl">Billentyűkurzor<em>egér nélküli játékhoz</em></span>
+        <div class="seg" id="segKb"><button data-v="0" class="on" data-t="ki">ki</button><button data-v="1" data-t="be">be</button></div></div>
+
+      <div class="msec" data-t="billCim">Gyorsbillentyűk</div>
+      <div class="billSugo" data-t="billSugo">Kattints egy billentyűre, majd nyomd le az újat. Esc: mégse. A sárga jelzés azt mutatja, hogy ugyanaz a billentyű máshol is szerepel.</div>
+      <div id="billList"></div>
+      <button class="wide" id="billReset" data-t="billVisszaallit">Alapértelmezés visszaállítása</button>
+      <button class="wide" id="setKeys" data-t="billLista">Billentyűk listája</button>
+    </div>
+
+    <button class="back" data-back="1" data-t="vissza">Vissza</button>
+  </div>
+
+  <div id="help"><span data-t="fejleszto">Fejlesztő</span>: <b>Parthenon2</b></div>
+</div>
+
+<!-- ===================== KÜLDETÉS ELIGAZÍTÁS ===================== -->
+<div id="brief">
+  <div class="bbox panel">
+    <div class="bnum" id="briefNum"></div>
+    <h2 id="briefName"></h2>
+    <p id="briefText"></p>
+    <div class="bobj" id="briefObj"></div>
+    <button id="briefGo" data-t="kezdes">Kezdés</button>
+  </div>
+</div>
+
+<!-- ===================== IDEOLÓGIA VÁLASZTÁS ===================== -->
+<div id="doct">
+  <div class="dbox panel">
+    <div class="dnum" id="doctEra"></div>
+    <h2 data-t="valasszIrany">Válassz irányt</h2>
+    <p class="dlead" data-t="doktLead">A döntés végleges, és a játszma végéig veled marad.</p>
+    <div id="doctList"></div>
+  </div>
+</div>
+
+<!-- ===================== BILLENTYŰK ===================== -->
+<div id="keys">
+  <div class="kbox panel">
+    <h3 data-t="setIranyitas">Irányítás</h3>
+    <table>
+      <tr data-tc="kbKamera"><td>WASD</td><td>kamera mozgatása</td></tr>
+      <tr data-tc="kbKurzor"><td>C</td><td>billentyűkurzor be/ki</td></tr>
+      <tr data-tc="kbNyilak" data-tb="kbNyilakSzo"><td>nyilak</td><td>kurzor (kurzoros módban), egyébként kamera</td></tr>
+      <tr data-tc="kbSzokoz" data-tb="kbSzokozSzo"><td>szóköz</td><td>kijelölés a kurzornál / építés lehelyezése</td></tr>
+      <tr data-tc="kbEnter"><td>Enter</td><td>parancs a kurzornál (mozgás, támadás, gyűjtés)</td></tr>
+      <tr data-tc="kbTab"><td>Tab</td><td>csoportváltás: sereg → munkások → tétlenek → épületek</td></tr>
+      <tr data-tc="kbTetlen"><td>.</td><td>következő tétlen munkás</td></tr>
+      <tr data-tc="kbEpuletek"><td>H K M U F T V</td><td>főhadiszállás, kaszárnya, templom, akadémia, majorság, torony, fal</td></tr>
+      <tr><td colspan="2" data-t="kbEpitesMegj" style="color:var(--dim);border:none;padding-top:2px">Építeni csak kijelölt munkással lehet — ők mennek oda felhúzni.</td></tr>
+      <tr data-tc="kbEgysegek"><td>1 2 3 4 5</td><td>munkás, lovasság, lövész, pikás, hittérítő</td></tr>
+      <tr data-tc="kbOtEgyszerre"><td>Shift + 1..4</td><td>öt egység egyszerre (Ctrl: tíz)</td></tr>
+      <tr data-tc="kbKorszak"><td>E</td><td>korszakváltás</td></tr>
+      <tr data-tc="kbTeljesSereg"><td>Ctrl + A</td><td>teljes sereg kijelölése</td></tr>
+      <tr data-tc="kbCsoportLetre"><td>Shift + 1..9</td><td>vezérlőcsoport létrehozása</td></tr>
+      <tr data-tc="kbCsoportElo"><td>Alt + 1..9</td><td>csoport előhívása (kétszer: odaugrás)</td></tr>
+      <tr data-tc="kbJavitas" data-tb="kbJavitasCim"><td>jobb klikk sérült vagy félkész épületre</td><td>munkások javítják, befejezik</td></tr>
+      <tr data-tc="kbRombol"><td>Del</td><td>kijelölt épület lerombolása (kétszer)</td></tr>
+      <tr data-tc="kbFotomodSor"><td>O</td><td>fotómód — a felület eltűnik</td></tr>
+        <tr data-tc="kbSzunet"><td>P</td><td>szünet</td></tr>
+      <tr data-tc="kbZene"><td>N</td><td>zene be/ki</td></tr>
+      <tr data-tc="kbBazisra" data-tb="kbSpace"><td>Space (kurzor nélkül)</td><td>ugrás a főhadiszállásra</td></tr>
+      <tr data-tc="kbMentes"><td>F5 / F9</td><td>gyors mentés / betöltés</td></tr>
+      <tr data-tc="kbMegse"><td>Esc</td><td>mégse</td></tr>
+    </table>
+    <button id="keysClose" data-t="bezar">Bezár</button>
+  </div>
+</div>
+
+<!-- ===================== JÁTÉK VÉGE ===================== -->
+<div id="over">
+  <h2 id="overTitle" data-t="vege">Vége</h2>
+  <p id="overText"></p>
+  <button id="startBtn2" onclick="document.getElementById('over').style.display='none';document.getElementById('menu').style.display='flex';menuPage('main');" style="padding:12px 34px;font-family:inherit;font-size:15px;letter-spacing:2px;cursor:pointer;background:linear-gradient(180deg,#c9a227,#8a6f18);border:none;color:#191207;border-radius:2px" data-t="ujJatek">Új játék</button>
+</div>
+  <!-- FRISSÍTÉSFIGYELŐ. A menü FÖLÖTT jelenik meg, tehát amíg be nem
+       zárod, nem tudsz új játékot kezdeni — pont ez a cél: legalább
+       egyszer lásd, mi változott. -->
+  <div id="patchBox">
+    <div class="patchAblak">
+      <button class="patchX" id="patchX" title="Bezárás">×</button>
+      <h2 id="patchCim">Mi újság</h2>
+      <div id="patchLap"></div>
+    </div>
+  </div>
+

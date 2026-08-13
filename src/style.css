@@ -1,0 +1,878 @@
+
+/* =======================================================================
+   STÍLUS — "hadi térkép" esztétika.
+   A --ink / --gold / --panel változókat a JS korszakonként átírja,
+   így a teljes kezelőfelület is együtt öregszik a játékkal.
+   ===================================================================== */
+:root{
+  --panel:#1a1410;      /* panel háttér */
+  --panel2:#241c15;     /* panel világosabb réteg */
+  --ink:#e8dcc0;        /* fő szövegszín */
+  --dim:#9c8d72;        /* halvány szöveg */
+  --gold:#c9a227;       /* korszak-akcent */
+  --line:#4a3c2c;       /* keretvonal */
+  --bad:#c0392b;
+  --ok:#5c9e4a;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#0c0a08}
+body{
+  font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-touch-callout:none;        /* hosszú nyomásra ne ugorjon fel menü */
+  -webkit-tap-highlight-color:transparent;
+  touch-action:none;                 /* ne nagyítson dupla koppintásra */
+}
+canvas#cv{display:block;position:absolute;inset:0;cursor:crosshair;touch-action:none}
+html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+
+/* --- HUD réteg: alapból átereszti az egeret a vászonhoz --- */
+#hud{position:absolute;inset:0;pointer-events:none;
+  font-size:calc(13px*var(--hud,1))}
+#hud .panel{pointer-events:auto}
+
+.panel{
+  position:relative;
+  /* Tömör nemzeti alapszín, fölötte a nemzeti minta külön rétegben.
+     Így a minta nem a háttér HELYETT jelenik meg, hanem rajta. */
+  background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);
+  border-radius:2px;
+  box-shadow:0 6px 20px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.panel::before{
+  content:'';position:absolute;inset:0;border-radius:2px;
+  background-image:var(--pat,none);background-repeat:repeat;background-size:64px 64px;
+  opacity:.5;pointer-events:none;
+}
+.panel>*{position:relative}
+
+/* --- Uralkodói portré, bal felül --- */
+#rulerBox{position:absolute;top:12px;left:12px;display:flex;align-items:center;gap:12px;padding:10px 16px 10px 10px}
+#portraitRing{
+  width:88px;height:88px;border-radius:50%;
+  border:3px solid var(--gold);
+  box-shadow:0 0 0 4px var(--panel), 0 0 18px rgba(0,0,0,.6), inset 0 0 12px rgba(0,0,0,.5);
+  overflow:hidden;flex:0 0 auto;background:#000;
+}
+#portrait{display:block;width:88px;height:88px}
+#rulerText{min-width:170px}
+/* A névnek korlátos hely jut, hogy ne nyomja szét a dobozt és ne érjen
+   át a korszakdobozig. Ami nem fér, kisebb betűvel jelenik meg. */
+#rulerName{font-size:19px;letter-spacing:.3px;line-height:1.1;
+  max-width:260px;white-space:nowrap;overflow:hidden}
+#rulerTitle{font-size:12px;color:var(--gold);letter-spacing:2.2px;text-transform:uppercase;margin-top:3px}
+#rulerNation{font-size:12px;color:var(--dim);margin-top:6px}
+
+/* --- Nyersanyagsáv, felül középen --- */
+#topCenter{position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:6px}
+#eraLabel{padding:5px 18px;display:flex;align-items:baseline;gap:9px;white-space:nowrap}
+#eraLabel b{font-size:14px;font-weight:500;letter-spacing:.6px}
+#eraLabel em{font-style:normal;font-size:10.5px;color:var(--dim);letter-spacing:1.6px;text-transform:uppercase}
+#resBar{display:flex;gap:2px;padding:0;overflow:hidden;border-top:2px solid var(--nat,var(--gold))}
+.res b,.res span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* A bezáró gomb NEM lebeg a gombok fölött: a panel jobb felső sarkában
+   saját helyet kap, és a tartalom jobb oldali térköze ekkora. Így soha nem
+   csúszik össze az építési sorral, bármennyi gomb is van benne. */
+/* Az ellenséges város fölött KARD alakú egérmutató: azonnal látszik,
+   hogy ide támadni lehet. SVG-ben adjuk meg, hogy ne kelljen külön
+   képfájl. */
+#cv.tamad{cursor:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScyOCcgaGVpZ2h0PScyOCc+PHBhdGggZD0nTTQgMjQgTDggMjAgTTYgMjIgTDIwIDggTDI0IDQgTDIzIDkgTDkgMjMgWicgc3Ryb2tlPScjZjBkZmFlJyBzdHJva2Utd2lkdGg9JzInIGZpbGw9JyNjOWEyMjcnLz48L3N2Zz4=") 4 24, crosshair}
+
+#cmdClose{position:absolute;top:8px;right:8px;width:30px;height:30px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:3px;
+  color:var(--dim);font-size:15px;line-height:1;cursor:pointer;font-family:inherit;
+  display:none;align-items:center;justify-content:center;padding:0;z-index:3}
+#cmdClose:hover{border-color:var(--gold);color:var(--ink)}
+#cmdClose.on{display:flex}
+#cmdBox{border-top:2px solid var(--nat,var(--gold))}
+#rulerBox,#eraBox{border-top:2px solid var(--nat,var(--gold))}
+#eraLabel{border-bottom:2px solid var(--nat,var(--gold))}
+/* A rekeszek elosztják egymás közt a helyet. A szén megjelenésével hatan
+   lettek, és fix szélességgel a Sereg lecsúszott a képernyőről. */
+.res{display:flex;align-items:center;gap:8px;padding:11px 16px;
+  border-right:1px solid var(--line);flex:1 1 0;min-width:0}
+.res:last-child{border-right:none}
+.res b{font-size:17px;font-variant-numeric:tabular-nums;font-weight:500}
+.res span{font-size:10px;color:var(--dim);letter-spacing:1.6px;text-transform:uppercase;display:block}
+.dot{width:11px;height:11px;border-radius:2px;transform:rotate(45deg)}
+
+/* --- Korszak panel, jobb felül --- */
+#eraBox{position:absolute;top:12px;right:12px;width:232px;padding:12px}
+#ageBtn{
+  margin-top:0;width:100%;padding:10px;cursor:pointer;
+  background:linear-gradient(180deg,var(--gold),#8a6f18);
+  border:none;border-radius:2px;color:#191207;
+  font-family:inherit;font-size:14px;font-weight:700;letter-spacing:.4px;
+}
+#ageBtn:disabled{background:#3a3128;color:#7b6d59;cursor:not-allowed}
+#ageCost{font-size:11px;color:var(--dim);margin-top:6px;text-align:center}
+#objective{font-size:11.5px;color:var(--gold);margin-top:8px;padding-top:7px;
+  border-top:1px solid var(--line);text-align:center;line-height:1.35;display:none}
+
+/* --- Kisrádió / minitérkép --- */
+#miniBox{position:absolute;right:12px;bottom:12px;padding:8px}
+#mini{display:block;border:1px solid var(--line);cursor:pointer}
+
+/* --- Parancssáv, alul balra --- */
+/* Zsoldosajánlat: a képernyő tetején, saját visszaszámlálóval */
+/* Piac: nyersanyagonként egy sor, vétel és eladás */
+.trade{display:flex;align-items:center;gap:6px;width:100%;margin-bottom:5px}
+.trade .tn{flex:0 0 62px;font-size:12px;color:var(--ink)}
+.trade .tp{flex:0 0 44px;font-size:11px;color:var(--dim);text-align:right}
+.trade button{flex:1;padding:6px 4px;font-family:inherit;font-size:11.5px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--ink);cursor:pointer}
+.trade button:hover{background:#3a2e1e}
+.trade button.no{opacity:.42;cursor:default}
+/* Fotómód: minden felületi elem eltűnik, csak a kis sáv marad */
+body.photo #topCenter, body.photo #rulerBox, body.photo #eraBox, body.photo #miniBox,
+body.photo #cmdBox, body.photo #quick, body.photo #offerBox, body.photo #toast,
+body.photo #help, body.photo #objective{display:none !important}
+/* Oktatómód: a jobb felső sarokban, hogy ne takarja a játékteret */
+#tutorBox{position:absolute;right:12px;top:calc(var(--topbar,70px) + 92px);
+  width:290px;padding:14px 16px 12px;display:none;z-index:17}
+#tutorBox.on{display:block}
+#tutorStep{font-size:10px;letter-spacing:2px;color:var(--gold);margin-bottom:4px}
+#tutorTitle{font-size:14.5px;letter-spacing:1px;color:var(--ink);margin-bottom:7px}
+#tutorText{font-size:12.5px;line-height:1.65;color:var(--dim)}
+#tutorText b{color:var(--ink)}
+#tutorSkip{margin-top:11px;padding:6px 12px;font-family:inherit;font-size:11.5px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;
+  color:var(--dim);cursor:pointer}
+body.photo #tutorBox{display:none !important}
+/* Kikötőmenü: a városnév köré sugárirányban kinyíló karikák */
+/* A városmenü a #hud rétegen belül van, ami átengedi a kattintást
+   (pointer-events:none), és csak a .panel osztályú dobozok fogják el.
+   A karikák nem panelek, ezért NEKIK KELL külön visszakapcsolni — enélkül
+   a menü látszott, de sem az ÉPÍTÉS, sem a TOBORZÁS nem reagált. */
+/* FLOTTASÁV. A kalózvilágban a hajóid a mindened: itt egy pillantással
+   látod mindegyik legénységét és sérülését, koppintásra pedig odaugrik
+   a kamera. Csak akkor jelenik meg, ha van hajód. */
+#fleetBar{position:absolute;left:12px;top:132px;display:none;flex-direction:column;
+  gap:5px;padding:8px;max-height:46vh;overflow-y:auto;z-index:14;min-width:132px}
+#fleetBar.on{display:flex}
+.fb{display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:2px;
+  cursor:pointer;background:rgba(30,24,16,.55);border:1px solid rgba(120,104,72,.35)}
+.fb:hover{background:rgba(56,44,26,.8);border-color:var(--gold)}
+.fb .fn{font-size:11px;letter-spacing:.6px;color:var(--ink);min-width:44px}
+.fb .fc{font-size:10px;color:var(--dim);min-width:46px;text-align:right}
+.fb .fh{width:34px;height:5px;background:rgba(0,0,0,.5);border-radius:1px;overflow:hidden}
+.fb .fh i{display:block;height:100%;background:#6fae52}
+.fb.seb .fh i{background:#c98b3a}
+.fb.vesz .fh i{background:#c04a3a}
+@media(max-width:640px){ #fleetBar{top:118px;left:8px;padding:6px;min-width:112px} }
+/* HÍRNÉV. A jobb szélen álló függőleges mérő: ahogy telik, úgy közeledik
+   a királyi hajóhad. A kegyelemlevél nullázza — egy város árán. */
+#fameBar{position:absolute;right:12px;top:132px;display:none;flex-direction:column;
+  align-items:center;gap:6px;padding:9px 8px;z-index:14}
+#fameBar.on{display:flex}
+.fmT{font-size:9px;letter-spacing:1.6px;color:var(--dim)}
+.fmTube{width:14px;height:120px;background:rgba(0,0,0,.55);border:1px solid rgba(120,104,72,.5);
+  border-radius:2px;position:relative;overflow:hidden}
+.fmTube i{position:absolute;left:0;right:0;bottom:0;height:0%;
+  background:linear-gradient(180deg,#c04a3a,#c98b3a);transition:height .3s ease}
+#fameBar.forr .fmTube i{background:linear-gradient(180deg,#ff5a3a,#c04a3a)}
+#fameBar.forr .fmTube{border-color:#c04a3a;box-shadow:0 0 10px rgba(192,74,58,.5)}
+.fmV{font-size:11px;color:var(--ink)}
+#fmPardon{font-family:inherit;font-size:9.5px;letter-spacing:.4px;padding:4px 6px;
+  background:rgba(40,32,20,.9);border:1px solid rgba(160,140,90,.45);color:var(--ink);
+  border-radius:2px;cursor:pointer;max-width:74px;line-height:1.15}
+#fmPardon:hover{border-color:var(--gold);background:rgba(64,50,26,.95)}
+@media(max-width:640px){ #fameBar{top:118px;right:8px;padding:6px} .fmTube{height:92px} }
+#portMenu{position:absolute;left:0;top:0;width:0;height:0;z-index:18;display:none;
+  pointer-events:none}
+#portMenu.on{display:block}
+.pk{pointer-events:auto;position:absolute;transform:translate(-50%,-50%);width:92px;height:92px;border-radius:50%;
+  border:2px solid #888;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  cursor:pointer;text-align:center;box-shadow:0 6px 18px rgba(0,0,0,.5);
+  transition:transform .12s ease, box-shadow .12s ease}
+.pk.nagy{width:104px;height:104px}
+.pk:hover{transform:translate(-50%,-50%) scale(1.07);box-shadow:0 8px 24px rgba(0,0,0,.6)}
+.pk .pn{font-size:11px;letter-spacing:1px;color:#f2efe6;text-shadow:0 1px 3px rgba(0,0,0,.7);
+  padding:0 6px;line-height:1.15}
+.pk em{display:block;font-style:normal;font-size:9px;color:rgba(242,239,230,.86);margin-top:2px;padding:0 4px;line-height:1.15}
+.pk.vissza{width:44px;height:44px;border-color:rgba(200,210,225,.5);
+  background:radial-gradient(circle at 40% 35%, rgba(40,48,62,.95), rgba(20,26,36,.9))}
+.pk.vissza .pn{font-size:17px}
+body.photo #portMenu{display:none !important}
+/* A #hud réteg alapból ÁTERESZTI az egeret a vászonhoz
+   (pointer-events:none), és csak a .panel osztályú dobozok fogják el.
+   A fotósáv egyik sem volt, ezért a két gombja látszott ugyan, de a
+   kattintás átment rajtuk a térképre — a Kép mentése és a Kilépés
+   némán nem csinált semmit. */
+/* --- Ponttábla --- */
+#pontTabla{position:absolute;right:12px;top:calc(var(--topbar,70px) + 10px);
+  width:186px;padding:7px 8px 6px;display:none;z-index:15;font-size:11.5px}
+#pontTabla.on{display:block}
+#pontTabla.zart #ptSorok, #pontTabla.zart #ptKod{display:none}
+.ptFej{display:flex;align-items:center;justify-content:space-between;
+  font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);
+  padding-bottom:4px;margin-bottom:4px;border-bottom:1px solid var(--line)}
+.ptFej button{width:18px;height:18px;line-height:1;background:transparent;
+  border:1px solid var(--line);border-radius:2px;color:var(--dim);cursor:pointer;font-size:11px}
+.ptFej button:hover{border-color:var(--gold);color:var(--ink)}
+.ptSor{display:flex;align-items:center;gap:6px;padding:2.5px 0}
+.ptSzin{width:9px;height:9px;border-radius:2px;flex:none;border:1px solid rgba(255,255,255,.25)}
+.ptNev{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ptSzam{color:var(--dim);font-variant-numeric:tabular-nums;font-size:10.5px}
+/* A saját sorod kiemelve, a szövetségesé ékkel, a kiesett áthúzva. */
+.ptSor.enyem .ptNev{color:#fff;font-weight:bold}
+.ptSor.tars .ptNev::before{content:'▲ ';color:#ebe4cd;font-size:8px}
+.ptSor.kiesett{opacity:.4}
+.ptSor.kiesett .ptNev{text-decoration:line-through}
+#ptKod{margin-top:5px;padding-top:4px;border-top:1px solid var(--line);
+  font-size:10.5px;color:var(--dim);letter-spacing:1px}
+@media(max-width:640px){ #pontTabla{width:150px;font-size:10.5px} }
+/* --- A város sorsa --- */
+#varosBox{position:absolute;left:50%;transform:translateX(-50%);
+  top:calc(var(--topbar,70px) + 70px);width:340px;padding:14px 16px 12px;
+  display:none;z-index:22;text-align:center}
+#varosCim{font-size:14px;letter-spacing:1.6px;color:var(--gold);margin-bottom:5px}
+#varosSzoveg{font-size:11.5px;color:var(--dim);line-height:1.5;margin-bottom:10px}
+.varosGombok{display:flex;flex-direction:column;gap:6px}
+.varosGombok button{padding:10px;font-family:inherit;font-size:12.5px;letter-spacing:1.2px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--ink);
+  cursor:pointer;transition:.14s}
+.varosGombok button:hover{border-color:var(--gold);background:#33281a;color:#fff}
+#varosFoglal{border-color:#6b5636}
+@media(max-width:640px){ #varosBox{width:min(340px,86vw)} }
+#photoBar{position:absolute;left:50%;transform:translateX(-50%);bottom:18px;
+  display:none;gap:8px;z-index:30;pointer-events:auto}
+#photoBar.on{display:flex}
+#photoBar button{padding:9px 16px;font-family:inherit;font-size:12.5px;letter-spacing:1px;
+  background:rgba(20,16,10,.82);border:1px solid rgba(201,162,39,.55);border-radius:2px;
+  color:#e8dcc0;cursor:pointer;backdrop-filter:blur(3px)}
+#photoBar button:hover{background:rgba(46,36,20,.9)}
+#offerBox{position:absolute;left:50%;transform:translateX(-50%);top:calc(var(--topbar,70px) + 58px);
+  width:330px;padding:12px 14px 9px;display:none;z-index:16;text-align:center}
+#offerBox.on{display:block}
+#offerText{font-size:13px;line-height:1.5;color:var(--ink);margin-bottom:9px}
+#offerBtns{display:flex;gap:7px;justify-content:center}
+#offerBtns button{flex:1;padding:8px 6px;font-family:inherit;font-size:12.5px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--ink);cursor:pointer}
+#offerYes{border-color:var(--gold)}
+#offerBtns button:hover{background:#3a2e1e}
+#offerBar{height:3px;background:rgba(0,0,0,.35);margin-top:9px;border-radius:2px;overflow:hidden}
+#offerBar i{display:block;height:100%;background:var(--gold);width:100%}
+/* A parancsdoboz SZÉLESEBB, de ALACSONYABB.
+
+   Régen 430 pixel széles volt, és a gombok korlátlanul tördelődtek több
+   sorba — munkás kijelölésekor (építés: tíz-egynéhány épület) ez a
+   képernyő jó részét eltakarta.
+
+   Most szélesebb doboz + kisebb gombok = ugyanaz a tartalom két sorban.
+   A `.row` legfeljebb két sort mutat; ami nem fér, azt görgetéssel éred
+   el — de a szélesítés miatt gyakorlatilag minden befér. */
+/* DUPLÁN SZÉLES sáv: így az összes gomb egy sorban elfér, és nem kell
+   oldalra görgetni. A felső határ megakadályozza, hogy ultraszéles
+   képernyőn az egész alsó él tele legyen. */
+#cmdBox{position:absolute;left:12px;bottom:12px;padding:9px;width:min(1180px,84vw)}
+/* A bezáró gomb szélessége + térköz: a tartalom eddig ér, nem alá */
+#cmdBox.hasClose{padding-right:46px}
+.cmdTitle{font-size:10px;letter-spacing:2.2px;text-transform:uppercase;color:var(--dim);margin:0 0 7px 2px}
+.row{
+  /* EGY SOR, VÍZSZINTES GÖRGETÉSSEL.
+
+     A tördelés két sorba még mindig sok üres helyet hagyott: a
+     félig telt második sor csúnyán lógott. Most minden egy sorban áll,
+     és ami nem fér ki, azt oldalra görgetve éred el — így a sáv magassága
+     ÁLLANDÓ, nem ugrál kijelölésenként. */
+  display:flex; gap:5px; flex-wrap:nowrap;
+  overflow-x:auto; overflow-y:hidden;
+  padding-bottom:4px;
+  scrollbar-width:thin; scrollbar-color:var(--line) transparent;
+}
+.row::-webkit-scrollbar{height:5px}
+.row::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+.row::-webkit-scrollbar-track{background:transparent}
+.row::-webkit-scrollbar{width:6px}
+.row::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+.btn{
+  /* Nem nyúlik: rögzített szélesség, hogy a gombok egyformák legyenek,
+     és ne maradjon üres hely a sor végén. */
+  flex:0 0 auto; min-width:76px; min-height:44px;
+  padding:4px 6px; cursor:pointer; text-align:center;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;
+  color:var(--ink);font-family:inherit;font-size:11.5px;line-height:1.12;
+  transition:border-color .12s, background .12s, transform .06s;
+}
+.btn:hover{border-color:var(--gold);background:#2e2419}
+.btn:active{transform:translateY(1px)}
+.btn.on{border-color:var(--gold);background:#3a2d1b}
+.btn small{display:block;font-size:9.5px;color:var(--dim);margin-top:3px;letter-spacing:.2px}
+.btn.no{opacity:.42;cursor:not-allowed}
+.btn kbd{font-family:inherit;color:var(--gold);font-size:9px}
+.grp{margin-bottom:9px}
+.grp:last-of-type{margin-bottom:0}
+#selInfo{margin-top:9px;font-size:12px;color:var(--dim);border-top:1px solid var(--line);padding-top:8px;min-height:17px}
+
+/* --- Rövid üzenetek a képernyő alján --- */
+#pauseTag{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:none;
+  padding:14px 30px;font-size:17px;letter-spacing:3px;color:var(--gold);text-transform:uppercase}
+#toast{position:absolute;bottom:96px;left:50%;transform:translateX(-50%);
+  font-size:14px;color:var(--ink);background:rgba(20,15,10,.9);border:1px solid var(--line);
+  padding:8px 18px;border-radius:2px;opacity:0;transition:opacity .25s}
+#toast.show{opacity:1}
+
+/* --- Kezdőmenü --- */
+/* Változatszám a menü sarkában */
+.res .bal{display:block;font-size:9.5px;letter-spacing:.4px;color:var(--dim);margin-top:1px}
+.starving{animation:ehezes 1.1s ease-in-out infinite}
+@keyframes ehezes{0%,100%{filter:none}50%{filter:brightness(1.25) saturate(1.4)}}
+#miVer{padding:8px 12px 2px;font-size:10.5px;letter-spacing:1.4px;color:var(--dim);opacity:.7;text-align:right}
+/* Nyelvválasztó zászlók a menü bal felső sarkában */
+/* Nyelvválasztó a jobb felső sarokban, legördülő listával.
+
+   RÖGZÍTETT (fixed) helyen áll, nem a menühöz igazítva: a menü görgethető
+   és középre rendezett, ezért az abszolút pozíció telefonon a tartalom
+   közepére csúszott, és a legördülő lista rácsúszott a címre. */
+/* A réteg a menü fölött, de a bemutatkozó képernyő ALATT: az teljes
+   képernyős, és nem szabad, hogy a zászlógomb átlógjon rajta. */
+/* Többjátékos lap */
+.netSor{display:flex;align-items:center;gap:9px;margin:9px 0;flex-wrap:wrap;justify-content:center}
+.netSor label{font-size:11px;letter-spacing:1px;color:var(--dim);min-width:88px;text-align:right}
+#netCim,#netKod{font-family:inherit;font-size:13px;padding:8px 10px;background:rgba(12,10,7,.9);
+  border:1px solid rgba(140,120,80,.5);color:var(--ink);border-radius:2px;min-width:150px}
+#netKod{text-transform:uppercase;letter-spacing:4px;text-align:center;max-width:130px}
+.netGombok{display:flex;flex-direction:column;gap:10px;align-items:center;margin:14px 0}
+#netAllapot{font-size:12.5px;color:var(--gold);margin:12px 0;min-height:20px;letter-spacing:.5px}
+.netSugo{font-size:11px;color:var(--dim);line-height:1.55;max-width:420px;margin:0 auto 6px}
+.netSugo code{background:rgba(0,0,0,.4);padding:1px 5px;border-radius:2px;color:var(--ink)}
+#langBox{position:fixed;right:14px;top:14px;z-index:45;display:none}
+#langBox.on{display:block}
+#langBtn{display:flex;align-items:center;gap:8px;padding:6px 10px 6px 7px;
+  background:rgba(20,16,10,.8);border:1px solid rgba(201,162,39,.45);border-radius:3px;
+  color:var(--ink);font-family:inherit;font-size:12.5px;letter-spacing:.6px;cursor:pointer}
+#langBtn:hover{background:rgba(46,36,20,.9);border-color:var(--gold)}
+#langBtn i{width:26px;height:18px;border-radius:2px;display:block;position:relative;overflow:hidden;
+  border:1px solid rgba(0,0,0,.35)}
+#langBtn b{font-weight:400;color:var(--dim);font-size:10px;margin-left:2px}
+/* A lista a gomb ALATT nyílik, jobbra igazítva, ÁTLÁTSZATLAN háttérrel.
+   Korábban átütött rajta a cím, mert a menü ugyanabban a rétegben volt. */
+#langList{display:none;position:absolute;right:0;top:calc(100% + 6px);min-width:162px;
+  background:#100d09;border:1px solid rgba(201,162,39,.45);border-radius:3px;
+  overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.7);z-index:61}
+#langList.on{display:block}
+#langList button{display:flex;align-items:center;gap:9px;width:100%;padding:8px 12px;
+  background:none;border:0;color:var(--ink);font-family:inherit;font-size:12.5px;
+  letter-spacing:.5px;cursor:pointer;text-align:left}
+#langList button:hover{background:rgba(201,162,39,.14)}
+#langList button.on{color:var(--gold)}
+#langList i{width:26px;height:18px;border-radius:2px;display:block;position:relative;
+  overflow:hidden;border:1px solid rgba(0,0,0,.35);flex:0 0 auto}
+/* --- Zászlók a nyelvválasztóban ---
+   Valódi, mai állami zászlók, beágyazott SVG-ként. Korábban CSS-színátmenetek
+   közelítették őket: a briten két ferde fehér sáv állt kereszt helyett, a
+   kínain pedig egyetlen ★ karakter jelezte az öt csillagot. Az SVG minden
+   nagyításban éles marad, és a fájl így is önmagában futtatható. */
+.fl-hu,.fl-en,.fl-de,.fl-zh{background-repeat:no-repeat;background-size:100% 100%;
+  background-position:center}
+/* magyar */
+.fl-hu{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 3'%3E%3Crect width='6' height='3' fill='%23477050'/%3E%3Crect width='6' height='2' fill='%23ffffff'/%3E%3Crect width='6' height='1' fill='%23ce2939'/%3E%3C/svg%3E")}
+/* brit */
+.fl-en{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 30'%3E%3CclipPath id='u'%3E%3Cpath d='M30,15 h30 v15 z v15 h-30 z h-30 v-15 z v-15 h30 z'/%3E%3C/clipPath%3E%3CclipPath id='k'%3E%3Crect width='60' height='30'/%3E%3C/clipPath%3E%3Cg clip-path='url(%23k)'%3E%3Crect width='60' height='30' fill='%23012169'/%3E%3Cpath d='M0,0 L60,30 M60,0 L0,30' stroke='%23ffffff' stroke-width='6'/%3E%3Cpath d='M0,0 L60,30 M60,0 L0,30' clip-path='url(%23u)' stroke='%23c8102e' stroke-width='4'/%3E%3Cpath d='M30,0 v30 M0,15 h60' stroke='%23ffffff' stroke-width='10'/%3E%3Cpath d='M30,0 v30 M0,15 h60' stroke='%23c8102e' stroke-width='6'/%3E%3C/g%3E%3C/svg%3E")}
+/* német */
+.fl-de{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 5 3'%3E%3Crect width='5' height='3' fill='%23ffce00'/%3E%3Crect width='5' height='2' fill='%23dd0000'/%3E%3Crect width='5' height='1' fill='%23000000'/%3E%3C/svg%3E")}
+/* kínai */
+.fl-zh{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 20'%3E%3Crect width='30' height='20' fill='%23ee1c25'/%3E%3Cg fill='%23ffde00'%3E%3Cpath d='M0.0000,-1.0000 0.2245,-0.3090 0.9511,-0.3090 0.3633,0.1180 0.5878,0.8090 0.0000,0.3820 -0.5878,0.8090 -0.3633,0.1180 -0.9511,-0.3090 -0.2245,-0.3090Z' transform='translate(5,5) scale(3)'/%3E%3Cpath d='M0.0000,-1.0000 0.2245,-0.3090 0.9511,-0.3090 0.3633,0.1180 0.5878,0.8090 0.0000,0.3820 -0.5878,0.8090 -0.3633,0.1180 -0.9511,-0.3090 -0.2245,-0.3090Z' transform='translate(10,2) rotate(239.036)'/%3E%3Cpath d='M0.0000,-1.0000 0.2245,-0.3090 0.9511,-0.3090 0.3633,0.1180 0.5878,0.8090 0.0000,0.3820 -0.5878,0.8090 -0.3633,0.1180 -0.9511,-0.3090 -0.2245,-0.3090Z' transform='translate(12,4) rotate(261.870)'/%3E%3Cpath d='M0.0000,-1.0000 0.2245,-0.3090 0.9511,-0.3090 0.3633,0.1180 0.5878,0.8090 0.0000,0.3820 -0.5878,0.8090 -0.3633,0.1180 -0.9511,-0.3090 -0.2245,-0.3090Z' transform='translate(12,7) rotate(285.945)'/%3E%3Cpath d='M0.0000,-1.0000 0.2245,-0.3090 0.9511,-0.3090 0.3633,0.1180 0.5878,0.8090 0.0000,0.3820 -0.5878,0.8090 -0.3633,0.1180 -0.9511,-0.3090 -0.2245,-0.3090Z' transform='translate(10,9) rotate(308.660)'/%3E%3C/g%3E%3C/svg%3E")}
+@media(max-width:640px){
+  #langBox{right:10px;top:10px}
+  #langBtn span{display:none}          /* telefonon csak a zászló */
+  #langBtn{padding:6px 8px 6px 6px}
+  #menu h1{margin-top:26px}            /* a cím ne kerüljön a választó alá */
+}
+#verTag{position:absolute;right:14px;bottom:12px;font-size:11px;letter-spacing:1.6px;
+  color:var(--dim);opacity:.7;z-index:2;pointer-events:none}
+#menuBg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+#menu>*:not(#menuBg){position:relative;z-index:1}
+/* A menü görgethető: nyolc nemzetnél és a korszak-, táj- és küldetéslistával
+   együtt a tartalom magasabb lehet az ablaknál. A "safe center" gondoskodik
+   arról, hogy hosszú tartalomnál a teteje se csússzon elérhetetlenül fel. */
+#menu{position:absolute;inset:0;background:radial-gradient(circle at 50% 35%,#1d1712,#0a0806 70%);
+  display:flex;flex-direction:column;align-items:center;justify-content:safe center;
+  gap:22px;z-index:20;padding:26px 20px 40px;
+  overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  touch-action:pan-y}
+#menu::-webkit-scrollbar{width:10px}
+#menu::-webkit-scrollbar-thumb{background:#3a2e1f;border-radius:5px}
+#menu::-webkit-scrollbar-track{background:transparent}
+#menu h1{font-size:44px;font-weight:500;letter-spacing:10px;text-transform:uppercase}
+#menu h1 em{font-style:normal;color:var(--gold)}
+#menu .lead{color:var(--dim);font-size:14px;letter-spacing:2px;margin-top:-14px}
+#nations{display:grid;grid-template-columns:repeat(4,150px);gap:12px;flex:none}
+.nat{padding:12px;cursor:pointer;text-align:center;background:var(--panel2);border:1px solid var(--line);border-radius:2px;transition:.14s}
+.nat:hover{border-color:var(--gold);transform:translateY(-3px)}
+.nat.sel{border-color:var(--gold);background:#33281a}
+.flag{display:block;width:100%;height:auto;aspect-ratio:auto;object-fit:contain;border:1px solid rgba(0,0,0,.55);margin-bottom:9px;border-radius:1px}
+.nat .nm{font-size:14px}
+.nat .rl{font-size:10.5px;color:var(--dim);margin-top:4px;line-height:1.3}
+.nat .bn{font-size:9.5px;color:var(--gold);margin-top:6px;line-height:1.25;letter-spacing:.2px}
+#bonusInfo{min-height:38px;max-width:540px;text-align:center;color:var(--dim);font-size:13px;line-height:1.5}
+#bonusInfo b{color:var(--gold);font-weight:500}
+#rulerBox{cursor:pointer}
+#rulerBox:hover{border-color:var(--gold)}
+/* A buborék alja mindig a parancssáv fölött ér véget: a --cmdh a
+   parancssáv valódi magassága, amit a felület minden átrendezésnél mér.
+   Enélkül alacsony ablakban a kettő egymásra csúszna. */
+#bio{position:absolute;left:12px;top:150px;width:330px;max-width:calc(100vw - 24px);
+  max-height:calc(100vh - 150px - var(--cmdh,220px) - 34px);
+  min-height:90px;overflow-y:auto;padding:14px 16px;display:none;z-index:20}
+#bio::before{content:'';position:absolute;left:34px;top:-8px;width:12px;height:12px;
+  background:var(--panel);border-left:1px solid var(--line);border-top:1px solid var(--line);
+  transform:rotate(45deg)}
+.bioTop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+#bioName{font-size:16px;font-weight:500;letter-spacing:.4px;color:var(--gold)}
+#bioClose{background:none;border:none;color:var(--dim);font-size:19px;line-height:1;
+  cursor:pointer;padding:0 2px;font-family:inherit}
+#bioClose:hover{color:var(--ink)}
+#bioMeta{font-size:10.5px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;margin:3px 0 9px}
+#bioLead{font-size:12.5px;line-height:1.6;color:var(--ink);margin-bottom:9px;
+  padding-bottom:9px;border-bottom:1px solid var(--line)}
+#bioText{font-size:12.5px;line-height:1.65;color:var(--ink);opacity:.78}
+#rulerBonus{font-size:10px;color:var(--gold);margin-top:4px;letter-spacing:.2px}
+#mainMenu{display:flex;flex-direction:column;gap:9px;width:100%;max-width:300px;margin-top:6px}
+.mbtn{padding:14px;cursor:pointer;font-family:inherit;font-size:16px;letter-spacing:2px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--ink);transition:.14s}
+.mbtn:hover{border-color:var(--gold);background:#33281a;color:#fff}
+/* --- PRÓBA jelvény a Többjátékos gombon ---
+   A mód működik, de közös birodalmas és saját szervert kíván, ezért
+   jelezzük. A gomb egyébként ugyanúgy viselkedik, mint a többi. */
+.mbtn{position:relative}
+.probaJel{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  font-size:9px;letter-spacing:1.4px;color:#0f0c08;background:var(--gold);
+  border-radius:2px;padding:2px 5px;pointer-events:none}
+#netMod{font-size:11.5px;color:var(--dim);line-height:1.5;text-align:center;
+  border:1px solid var(--line);border-radius:2px;padding:8px 10px;width:100%}
+#netMod b{display:block;color:var(--gold);letter-spacing:1.4px;
+  font-size:10.5px;text-transform:uppercase;margin-bottom:3px}
+/* --- Beállítások: fülek --- */
+.setTabs{display:flex;gap:6px;width:100%;margin-bottom:4px}
+.setTabs button{flex:1;padding:9px 6px;font-family:inherit;font-size:12px;letter-spacing:1.6px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--dim);
+  cursor:pointer;transition:.14s}
+.setTabs button:hover{color:var(--ink);border-color:#6b5636}
+.setTabs button.on{color:#fff;border-color:var(--gold);background:#33281a}
+.setTab{display:none;flex-direction:column;gap:8px;width:100%}
+.setTab.on{display:flex}
+
+/* --- Gyorsbillentyűk --- */
+.billSugo{font-size:11px;color:var(--dim);line-height:1.5;width:100%;margin:-2px 0 2px}
+#billList{width:100%;display:flex;flex-direction:column;gap:3px;
+  max-height:340px;overflow-y:auto;overscroll-behavior:contain}
+.billCsop{font-size:10.5px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);
+  margin-top:8px;padding-bottom:3px;border-bottom:1px solid var(--line)}
+.billSor{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:5px 2px;font-size:12.5px}
+.billGomb{min-width:62px;padding:5px 9px;font-family:inherit;font-size:12px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--ink);
+  cursor:pointer;text-align:center;transition:.12s}
+.billGomb:hover{border-color:var(--gold);color:#fff}
+/* Felvétel közben villog, hogy egyértelmű legyen: most rád várunk. */
+.billGomb.var{border-color:var(--gold);background:#33281a;color:#fff;
+  animation:billVillan 1s ease-in-out infinite}
+@keyframes billVillan{0%,100%{opacity:1}50%{opacity:.55}}
+/* Ütközés: ugyanaz a billentyű máshol is szerepel. Nem tiltjuk, csak jelezzük. */
+.billGomb.utkozik{border-color:#c9a227;color:#f0d383}
+@media(max-width:640px){
+  .setTabs button{font-size:11px;letter-spacing:1px;padding:8px 4px}
+  #billList{max-height:none}
+}
+/* --- Szoba --- */
+#szobaKod{width:100%;padding:8px 10px;background:#1a1410;border:1px solid var(--gold);
+  border-radius:2px;font-size:14px;letter-spacing:3px;text-align:center;color:#fff}
+#szobaKod b{color:var(--gold);font-size:10.5px;letter-spacing:2px;margin-right:8px}
+.szobaSugo{font-size:11.5px;color:var(--dim);line-height:1.55;width:100%;text-align:left}
+#szobaLista{width:100%;display:flex;flex-direction:column;gap:5px}
+.szobaSor{display:flex;align-items:center;gap:7px;padding:6px 8px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px}
+.szobaSzin{width:12px;height:12px;border-radius:2px;flex:none;
+  border:1px solid rgba(255,255,255,.28)}
+.szobaNev{flex:1;min-width:0;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.szobaSel{font-family:inherit;font-size:11.5px;padding:3px 5px;max-width:140px;
+  background:#1a1410;border:1px solid var(--line);border-radius:2px;color:var(--ink)}
+.szobaSel.szobaCsapat{max-width:96px}
+.szobaX{width:24px;height:24px;flex:none;font-size:14px;line-height:1;
+  background:transparent;border:1px solid var(--line);border-radius:2px;
+  color:var(--dim);cursor:pointer}
+.szobaX:hover:not(:disabled){border-color:#a33;color:#e08a8a}
+.szobaGombok{width:100%;display:flex;gap:6px}
+.szobaGombok .mbtn{flex:1;padding:9px;font-size:12.5px;letter-spacing:1.4px}
+#szobaMap{width:100%;font-family:inherit;font-size:12.5px;padding:7px;
+  background:#1a1410;border:1px solid var(--line);border-radius:2px;color:var(--ink)}
+#szobaStart{width:100%;padding:13px;margin-top:8px;font-family:inherit;font-size:15px;
+  letter-spacing:2px;background:#33281a;border:1px solid var(--gold);border-radius:2px;
+  color:#fff;cursor:pointer}
+#szobaStart:hover{background:#42341f}
+@media(max-width:640px){
+  .szobaSel{max-width:96px;font-size:11px}
+  .szobaSel.szobaCsapat{max-width:74px}
+}
+/* --- Nyitott szobák listája --- */
+/* ===== TÖBBJÁTÉKOS — két keretes szakasz =====
+   A keret nem díszítés: elválasztja a HELYI és a HÁLÓZATI utat, hogy a
+   szem egy pillantással lássa, melyik gomb hova tartozik. */
+.netDoboz{width:min(440px,96%);margin:0 auto;padding:12px 14px 14px;
+  background:rgba(0,0,0,.16);border:1px solid var(--line);border-radius:3px;
+  display:flex;flex-direction:column;align-items:center;gap:9px}
+.netCim{align-self:flex-start;font-size:11px;letter-spacing:2.4px;text-transform:uppercase;
+  color:var(--gold);border-bottom:1px solid var(--line);width:100%;padding-bottom:6px;margin-bottom:2px}
+.netLeiras{margin:0;font-size:11.5px;line-height:1.5;color:var(--dim);text-align:center}
+.netNevSor{width:min(440px,96%);margin:0 auto}
+/* A fő út gombja hangsúlyosabb: arany keret, nem barna. */
+.netDoboz .mbtn{width:100%;max-width:none}
+.mbtn.netFo{border-color:var(--gold)}
+/* A ritkább utak halványabbak, és felül elválasztó vonal jelzi, hogy
+   ezek már „ha másképp nem megy” lehetőségek. */
+.netMasodlagos{width:100%;display:flex;flex-direction:column;gap:8px;
+  border-top:1px solid var(--line);padding-top:11px;margin-top:2px;opacity:.86}
+/* Az állapot egy pötty: zöld, sárga vagy piros. */
+.netAllapotSor{display:flex;align-items:center;gap:7px;width:100%;
+  font-size:11.5px;color:var(--dim)}
+.netPont{width:8px;height:8px;border-radius:50%;background:#6b6257;flex:none;
+  box-shadow:0 0 0 2px rgba(0,0,0,.28)}
+.netPont.keres{background:var(--gold);animation:netVillan 1.1s ease-in-out infinite}
+.netPont.jo{background:#6fae5a}
+.netPont.rossz{background:#c96a58}
+@keyframes netVillan{0%,100%{opacity:1}50%{opacity:.35}}
+#netSzobak{width:100%;margin:0;display:flex;flex-direction:column;gap:5px}
+.netUres,.netKeres,.netHiba{text-align:center}
+/* --- FRISSÍTÉSFIGYELŐ --- */
+/* A menü és a HUD is saját rétegben ül; ez az ablak MINDEN fölött kell
+   legyen, különben a menü rácsúszik, és a sötétítés sem látszik. */
+#patchBox{display:none;position:fixed;inset:0;z-index:9999;
+  align-items:center;justify-content:center;background:rgba(6,4,3,.86)}
+.patchAblak{position:relative;width:min(560px,92%);max-height:80vh;overflow:auto;
+  background:var(--panel);border:1px solid var(--gold);border-radius:3px;
+  padding:22px 26px 26px;box-shadow:0 18px 60px rgba(0,0,0,.6)}
+.patchAblak h2{margin:0 0 14px;font-size:18px;color:var(--gold);letter-spacing:2px;
+  text-align:center;font-weight:normal}
+.patchX{position:absolute;right:10px;top:8px;width:30px;height:30px;
+  background:none;border:none;color:var(--dim);font-size:22px;cursor:pointer;line-height:1}
+.patchX:hover{color:var(--ink)}
+.patchFej{font-size:11.5px;letter-spacing:1.8px;text-transform:uppercase;
+  color:var(--gold);border-bottom:1px solid var(--line);padding-bottom:5px;margin:14px 0 8px}
+.patchLista{margin:0;padding-left:20px}
+.patchLista li{font-size:13px;line-height:1.65;color:var(--ink);margin-bottom:7px}
+.szobaKesz{padding:3px 9px;font-family:inherit;font-size:10.5px;letter-spacing:.8px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--dim);
+  cursor:pointer;flex:none;margin-left:4px}
+.szobaKesz.on{border-color:#6fae5a;color:#8fd07a}
+.szobaKeszJel{width:9px;height:9px;border-radius:50%;background:#6b6257;flex:none;
+  margin-left:8px;box-shadow:0 0 0 2px rgba(0,0,0,.3)}
+.szobaKeszJel.on{background:#6fae5a}
+.ptDipl{margin-left:6px;padding:1px 6px;font-family:inherit;font-size:9.5px;letter-spacing:.6px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--dim);
+  cursor:pointer;flex:none}
+.ptDipl:hover{border-color:var(--gold);color:var(--ink)}
+.ptDipl.bont{color:#d98b7a;border-color:#7a4a3a}
+.szMeghivoGomb{padding:4px 10px;font-size:11px;letter-spacing:1px;margin-left:4px;
+  vertical-align:middle;width:auto;max-width:none}
+.netSzobaSor{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:6px 8px;background:var(--panel2);border:1px solid var(--line);border-radius:2px;
+  font-size:12px}
+.netSzobaSor b{color:var(--gold);letter-spacing:1.5px}
+.netSzobaSor i{color:var(--dim);font-style:normal;font-size:11px}
+.netSzobaSor .mbtn{padding:5px 12px;font-size:11.5px;letter-spacing:1px;flex:none}
+.netUres{font-size:11.5px;color:var(--dim);padding:4px 2px}
+.netKeres{font-size:11.5px;color:var(--gold);padding:4px 2px;opacity:.85}
+.netKeres::after{content:'';animation:netPont 1.2s steps(4,end) infinite}
+@keyframes netPont{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+.netHiba{font-size:11.5px;color:#d98b7a;padding:4px 2px}
+.netSzobaFej{font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--dim);padding:2px 2px 0}
+.netValaszto{width:100%;text-align:center;font-size:11px;color:var(--dim);
+  letter-spacing:1px;margin:6px 0 2px}
+#menuNote{font-size:11.5px;color:var(--dim);text-align:center;margin-top:4px;min-height:16px;line-height:1.5}
+.mpanel{display:none;flex-direction:column;align-items:center;gap:10px;width:100%;max-width:640px;flex:none}
+/* --- EGYSÉGES GOMBSZÉLESSÉG ---
+   A lap középre igazítja a gyerekeit, ezért minden gomb a SAJÁT
+   szövegéhez zsugorodott: az „Új játék” keskeny lett, a „Visszajátszás
+   megnyitása” széles. Egymás alatt ez csálé lépcsőnek látszott.
+
+   A gomblistás lapokon ezért egységes szélességet adunk — ugyanazt,
+   amit a főmenü használ (300 px), hogy a két szint egymásra épüljön.
+
+   Kivétel a sorba rendezett gomb (.netSor): ott a gomb egy beviteli
+   mező MELLETT áll, és a teljes szélesség szétverné a sort. */
+#egyPanel .mbtn,
+#netPanel > .mbtn,
+#netPanel .netGombok > .mbtn{ width:100%; max-width:300px; }
+#egyPanel .back, #netPanel .back{ width:100%; max-width:300px; }
+.netSor .mbtn{ width:auto; max-width:none; }
+.mpanel.on{display:flex}
+.msec{align-self:flex-start;font-size:11px;letter-spacing:2.4px;text-transform:uppercase;
+  color:var(--gold);margin-top:6px;border-bottom:1px solid var(--line);width:100%;padding-bottom:5px}
+#eras{display:flex;gap:5px;width:100%}
+#eras button{flex:1;padding:9px 4px;cursor:pointer;font-family:inherit;font-size:12.5px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--dim)}
+#eras button.on{border-color:var(--gold);color:var(--ink);background:#33281a}
+#eraPick{font-size:11.5px;color:var(--dim);text-align:center;min-height:16px}
+/* --- Uralkodó bemutatása a játszma elején --- */
+#intro{position:fixed;inset:0;z-index:60;display:none;flex-direction:column;
+  align-items:center;justify-content:center;gap:18px;padding:24px;
+  background:radial-gradient(circle at 50% 40%, #241a12 0%, #0c0a08 70%)}
+#intro.on{display:flex}
+#introCard{display:flex;gap:24px;align-items:center;max-width:820px;padding:22px 26px}
+#introPortrait{width:186px;height:186px;border-radius:50%;flex:none;
+  border:3px solid var(--gold);box-shadow:0 6px 26px rgba(0,0,0,.6)}
+#introText{min-width:0}
+#introNation{font-size:11px;letter-spacing:2.4px;text-transform:uppercase;color:var(--gold)}
+#introName{font-size:30px;line-height:1.1;margin:4px 0 2px;font-weight:500;color:var(--ink)}
+#introTitle{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)}
+#introMeta{font-size:11.5px;color:var(--dim);margin-top:6px}
+#introBio{font-size:13.5px;line-height:1.65;color:var(--ink);margin:12px 0 0}
+#introBonus{margin-top:12px;padding:9px 12px;border-left:3px solid var(--gold);
+  background:var(--panel2);font-size:12.5px;line-height:1.5;color:var(--dim)}
+#introGo{padding:13px 40px;font-family:inherit;font-size:15px;letter-spacing:1.6px;
+  background:var(--panel2);border:1px solid var(--gold);border-radius:3px;
+  color:var(--ink);cursor:pointer}
+#introGo:hover{background:#33281a}
+@media (max-width:900px), (pointer:coarse){
+  #intro{padding:calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom))}
+  #introCard{flex-direction:column;gap:12px;text-align:center;padding:16px;max-height:74vh;overflow-y:auto}
+  #introPortrait{width:118px;height:118px}
+  #introName{font-size:21px}
+  #introBio{font-size:12.5px;line-height:1.55}
+  #introBonus{border-left:none;border-top:2px solid var(--gold);text-align:left}
+}
+#achList{display:flex;flex-direction:column;gap:5px;width:100%;max-height:52vh;overflow-y:auto}
+.ach{display:flex;flex-direction:column;gap:2px;padding:8px 11px;border:1px solid var(--line);
+  border-radius:2px;background:var(--panel2);opacity:.5}
+.ach.on{opacity:1;border-color:var(--gold)}
+.ach b{font-size:13px;font-weight:500;color:var(--ink)}
+.ach span{font-size:11px;color:var(--dim);line-height:1.4}
+#achCount{font-size:11px;color:var(--dim);letter-spacing:.5px;text-transform:none}
+#selRes{padding:7px 10px;font-family:inherit;font-size:12.5px;background:var(--panel2);
+  border:1px solid var(--line);border-radius:2px;color:var(--ink);cursor:pointer;min-width:180px}
+#maps{display:flex;flex-wrap:wrap;gap:5px;width:100%;justify-content:center}
+#maps button{padding:7px 11px;cursor:pointer;font-family:inherit;font-size:12.5px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--dim)}
+#maps button.on{border-color:var(--gold);color:var(--ink);background:#33281a}
+#mapDesc{font-size:11.5px;color:var(--dim);text-align:center;line-height:1.5;min-height:18px}
+#diffs{display:flex;gap:6px;width:100%}
+#diffs button{flex:1;padding:11px 6px;cursor:pointer;font-family:inherit;font-size:14px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--dim)}
+#diffs button.on{border-color:var(--gold);color:var(--ink);background:#33281a}
+#diffDesc{font-size:11.5px;color:var(--dim);text-align:center;line-height:1.5;min-height:32px}
+.setRow{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;
+  padding:8px 2px;border-bottom:1px solid var(--line);font-size:13.5px}
+.setRow span{display:flex;flex-direction:column}
+.setRow em{font-style:normal;font-size:10.5px;color:var(--dim);margin-top:2px}
+.seg{display:flex;gap:3px}
+.seg button{padding:6px 11px;cursor:pointer;font-family:inherit;font-size:12px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--dim)}
+.seg button.on{border-color:var(--gold);color:var(--ink);background:#33281a}
+input[type=range]{width:140px;accent-color:var(--gold)}
+button.back{padding:10px 26px;cursor:pointer;font-family:inherit;font-size:13px;letter-spacing:1.4px;
+  background:none;border:1px solid var(--line);border-radius:2px;color:var(--dim);margin-top:6px}
+button.back:hover{border-color:var(--gold);color:var(--ink)}
+button.wide{width:100%;padding:9px;cursor:pointer;font-family:inherit;font-size:13px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--ink)}
+#modes{display:flex;gap:6px}
+.mode{padding:9px 22px;cursor:pointer;font-family:inherit;font-size:13px;letter-spacing:1.2px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--dim)}
+.mode.on{border-color:var(--gold);color:var(--ink);background:#33281a}
+#missions{display:none;flex-direction:column;gap:6px;width:100%;max-width:620px}
+.mis{display:flex;gap:12px;align-items:flex-start;padding:11px 14px;cursor:pointer;text-align:left;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;transition:.14s}
+.mis:hover{border-color:var(--gold)}
+.mis.sel{border-color:var(--gold);background:#33281a}
+.mis.lock{opacity:.45;cursor:not-allowed}
+.mis .num{font-size:19px;color:var(--gold);min-width:26px;line-height:1.1}
+.mis .mn{font-size:14px}
+.mis .mb{font-size:11.5px;color:var(--dim);margin-top:3px;line-height:1.4}
+.mis .done{font-size:10px;color:var(--ok);letter-spacing:1.4px;text-transform:uppercase;margin-top:4px}
+#startBtn{padding:14px 46px;font-family:inherit;font-size:17px;letter-spacing:2px;cursor:pointer;
+  background:linear-gradient(180deg,var(--gold),#8a6f18);border:none;color:#191207;border-radius:2px}
+#startBtn:disabled{background:#332b22;color:#6d6152;cursor:not-allowed}
+#help{max-width:620px;font-size:12.5px;line-height:1.7;color:var(--dim);text-align:center;
+  letter-spacing:.4px;margin-top:4px}
+#help b{color:var(--gold);font-weight:500;letter-spacing:1px}
+
+/* --- Játék vége --- */
+#over{position:absolute;inset:0;background:rgba(6,5,4,.88);z-index:25;display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:16px}
+#over h2{font-size:40px;letter-spacing:6px;text-transform:uppercase}
+#over p{color:var(--dim)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+canvas#cv:focus-visible{outline:3px solid var(--gold);outline-offset:-3px}
+.qb:focus-visible,.btn:focus-visible,#ageBtn:focus-visible,.nat:focus-visible,#startBtn:focus-visible{
+  outline:3px solid var(--gold);outline-offset:2px}
+#doct{position:absolute;inset:0;background:radial-gradient(circle at 50% 40%,#1d1712,#0a0806 75%);
+  z-index:27;display:none;align-items:center;justify-content:center;padding:18px}
+.dbox{max-width:600px;width:100%;padding:24px 26px;max-height:92vh;overflow-y:auto}
+.dnum{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);text-align:center}
+.dbox h2{font-size:26px;font-weight:500;margin:8px 0 4px;letter-spacing:1px;text-align:center}
+.dlead{font-size:12.5px;color:var(--dim);text-align:center;margin-bottom:18px}
+.doc{display:block;width:100%;text-align:left;padding:14px 16px;margin-bottom:8px;cursor:pointer;
+  background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--ink);
+  font-family:inherit;transition:.14s}
+.doc:hover{border-color:var(--gold);background:#33281a}
+.doc .dn{font-size:16px;letter-spacing:.4px}
+.doc .dd{font-size:12.5px;color:var(--dim);margin-top:5px;line-height:1.5}
+#brief{position:absolute;inset:0;background:radial-gradient(circle at 50% 40%,#1d1712,#0a0806 75%);
+  z-index:26;display:none;align-items:center;justify-content:center;padding:18px}
+.bbox{max-width:560px;width:100%;padding:26px 28px;text-align:center}
+.bnum{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--dim)}
+.bbox h2{font-size:28px;font-weight:500;margin:8px 0 16px;letter-spacing:1px}
+.bbox p{font-size:14.5px;line-height:1.75;color:var(--ink);opacity:.9}
+.bobj{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);
+  font-size:13px;color:var(--gold);letter-spacing:.4px}
+#briefGo{margin-top:20px;width:100%;padding:13px;cursor:pointer;font-family:inherit;
+  font-size:15px;letter-spacing:2px;background:linear-gradient(180deg,var(--gold),#8a6f18);
+  border:none;border-radius:2px;color:#191207}
+#keys{position:absolute;inset:0;background:rgba(6,5,4,.86);z-index:24;display:none;
+  align-items:center;justify-content:center;padding:16px}
+.kbox{max-width:520px;width:100%;max-height:88vh;overflow-y:auto;padding:20px 22px}
+.kbox h3{font-size:19px;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:12px}
+.kbox table{width:100%;border-collapse:collapse;font-size:13px}
+.kbox td{padding:5px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.kbox td:first-child{width:38%;color:var(--gold);font-family:inherit;white-space:nowrap;padding-right:10px}
+#keysClose{margin-top:16px;width:100%;padding:11px;cursor:pointer;font-family:inherit;font-size:14px;
+  background:linear-gradient(180deg,var(--gold),#8a6f18);border:none;border-radius:2px;color:#191207}
+
+/* --- Gyorsgombok --- */
+#quick{position:absolute;right:12px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px}
+/* A legördülő menü a gyorssáv MELLETT nyílik, de a hírnévsáv ALÁ:
+   kalózvilágban a jobb felső sarokban áll a hírnévmérő, és a
+   függőlegesen középre igazított menü belelógott.
+
+   A `max-height` + görgetés azért kell, hogy alacsony ablakban se
+   fusson ki a képernyőről. */
+#dropMenu{position:absolute;right:64px;top:auto;bottom:12px;transform:none;
+  width:236px;padding:6px;max-height:calc(100vh - 210px);overflow-y:auto;
+  display:none;pointer-events:auto;z-index:12}
+#dropMenu.on{display:block}
+.mi{display:flex;justify-content:space-between;align-items:center;width:100%;padding:10px 12px;
+  cursor:pointer;background:none;border:none;color:var(--ink);font-family:inherit;font-size:13.5px;
+  text-align:left;border-radius:2px}
+.mi:hover{background:#33281a;color:#fff}
+.mi span{font-size:10.5px;color:var(--dim);letter-spacing:1px}
+.mi.danger{color:#e08a80}
+.mi.danger:hover{background:#3a1f1c}
+.msep{height:1px;background:var(--line);margin:5px 8px}
+.qb{width:44px;height:44px;padding:0;cursor:pointer;color:var(--ink);
+  font-family:inherit;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center}
+.qb:hover{border-color:var(--gold)}
+.qb:active{transform:translateY(1px)}
+
+/* =====================================================================
+   MOBIL ELRENDEZÉS
+   Kisebb kijelzőn a paneleket a szélekre húzzuk, a gombokat ujjmérethez
+   igazítjuk, a parancssáv pedig vízszintesen görgethetővé válik.
+   =================================================================== */
+@media (max-width:900px), (pointer:coarse){
+  /* A kijelző kivágása (Dynamic Island, kamerasziget) alá nem szabad
+     tenni semmit: a felső sáv a biztonságos területnél kezdődik, és
+     oldalt is behúzódik. Enélkül a korszakcímke a sziget mögé kerül. */
+  #topCenter{top:env(safe-area-inset-top);left:env(safe-area-inset-left);
+    right:env(safe-area-inset-right);transform:none;width:auto;gap:0}
+  #eraLabel{width:100%;justify-content:center;border-radius:0;border-left:none;border-right:none;
+    border-top:none;padding:3px 10px;gap:7px}
+  #eraLabel b{font-size:11.5px}
+  #eraLabel em{font-size:8.5px;letter-spacing:1.1px}
+  .res{padding:7px 5px;gap:4px}
+  .res b{font-size:14px}
+  .res span{font-size:8px;letter-spacing:.6px}
+  .dot{width:8px;height:8px}
+  #resBar{width:100%;border-radius:0;border-left:none;border-right:none;
+    justify-content:space-between;padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left)}
+  .res{padding:7px 8px;gap:5px;flex:1 1 0}
+  .res b{font-size:14px}
+  .res span{font-size:8.5px;letter-spacing:1px}
+  .dot{width:8px;height:8px}
+
+  #bio{left:6px;top:118px;width:calc(100vw - 12px);
+    max-height:calc(100vh - 118px - var(--cmdh,34vh) - env(safe-area-inset-bottom) - 26px)}
+  #rulerBox{top:calc(var(--topbar,70px) + env(safe-area-inset-top) + 4px);
+    left:calc(6px + env(safe-area-inset-left));padding:6px 10px 6px 6px;gap:8px}
+  #portraitRing,#portrait{width:54px;height:54px}
+  #rulerText{min-width:0}
+  #rulerName{font-size:14px;
+    max-width:calc(100vw - 6px - 136px - 8px - 78px - 14px)}
+  #rulerTitle{font-size:9px;letter-spacing:1.4px}
+  #rulerNation{font-size:9.5px;margin-top:3px}
+  #rulerBonus,
+  #eraBox{top:calc(var(--topbar,70px) + env(safe-area-inset-top) + 4px);
+    right:calc(6px + env(safe-area-inset-right));width:136px;padding:8px}
+  #ageBtn{padding:9px 4px;font-size:11.5px;margin-top:7px}
+  #ageCost{font-size:9px;margin-top:4px}
+
+  #dropMenu{right:auto;left:6px;top:auto;transform:none;
+    bottom:calc(var(--cmdh,34vh) + env(safe-area-inset-bottom) + 62px);width:222px}
+  /* A gyorsgombok vízszintes sorba kerülnek, így marad hely a minitérképnek,
+     és nem ütköznek a korszakdobozzal fekvő tájolásban sem. */
+  #quick{right:auto;left:calc(6px + env(safe-area-inset-left));top:auto;
+    bottom:calc(var(--cmdh,34vh) + env(safe-area-inset-bottom) + 10px);
+    transform:none;flex-direction:row;gap:5px}
+  .qb{width:44px;height:44px;font-size:18px}
+
+  #miniBox{right:calc(6px + env(safe-area-inset-right));
+    bottom:calc(var(--cmdh,34vh) + env(safe-area-inset-bottom) + 10px);padding:4px}
+  #mini{width:104px;height:78px;touch-action:none}
+
+  #cmdBox{left:calc(6px + env(safe-area-inset-left));right:calc(6px + env(safe-area-inset-right));
+    bottom:calc(6px + env(safe-area-inset-bottom));width:auto;padding:8px;
+    max-height:34vh;overflow:hidden}
+  .cmdTitle{font-size:9px;margin-bottom:5px}
+  .row{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding-bottom:3px;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .row::-webkit-scrollbar{display:none}
+  .btn{flex:0 0 82px;min-height:54px;font-size:12px}
+  .btn small{font-size:9px}
+  .btn kbd{display:none}
+  #selInfo{font-size:11px;padding-top:6px}
+  #toast{bottom:calc(var(--cmdh,34vh) + env(safe-area-inset-bottom) + 74px);font-size:12.5px;padding:7px 14px;max-width:88vw;text-align:center}
+
+  #menu{gap:14px;padding:14px;overflow-y:auto;justify-content:flex-start;padding-top:26px}
+  #menu h1{font-size:30px;letter-spacing:5px}
+  #menu .lead{font-size:12px;margin-top:-8px}
+  #nations{grid-template-columns:repeat(2,minmax(0,1fr));width:100%;max-width:420px;gap:8px}
+  .nat{padding:8px}
+  .flag{margin-bottom:6px}
+  .nat .nm{font-size:12.5px}
+  .nat .rl{font-size:9.5px}
+  #startBtn{padding:13px 28px;font-size:15px;width:100%;max-width:420px}
+  #help{font-size:11px;line-height:1.7}
+  #over h2{font-size:28px}
+}
+/* Nagyon keskeny kijelzőn minden kisebb lesz — de a minitérkép marad,
+   mert pont ott a legnehezebb tájékozódni. */
+@media (max-width:430px){
+  .qb{width:40px;height:40px;font-size:17px}
+  #quick{gap:4px}
+  #mini{width:88px;height:66px}
+  #rulerNation{display:none}
+  #eraBox{width:124px}
+}
+
+/* -----------------------------------------------------------------------
+   ALACSONY ABLAK
+
+   Széles, de alacsony ablakban (például fekvő telefon vagy kis böngészőablak)
+   a jobb oldali gyorsgombsor függőlegesen a korszakdobozba érne. Ilyenkor
+   ugyanaz az elrendezés lép életbe, mint érintésen: vízszintes sor a
+   parancssáv fölött. A buborék is feljebb kerül, hogy ne szoruljon ki.
+   ----------------------------------------------------------------------- */
+@media (max-height:640px){
+  #quick{right:auto;left:12px;top:auto;transform:none;flex-direction:row;gap:5px;
+    bottom:calc(var(--cmdh,200px) + 20px)}
+  .qb{width:42px;height:42px;font-size:17px}
+  #miniBox{bottom:calc(var(--cmdh,200px) + 20px)}
+  #bio{top:118px;max-height:calc(100vh - 118px - var(--cmdh,200px) - 30px)}
+  #eraBox{width:196px;padding:9px}
+}
+
+/* Nagyon keskeny kijelzőn (320 px körül) a korszakdoboz szűkül, hogy a
+   hosszú uralkodónevek — Paul von Hindenburg, III. Sobieski János —
+   olvasható méretben elférjenek mellette. */
+@media (max-width:379px){
+  #eraBox{width:108px;padding:6px}
+  #ageBtn{font-size:10.5px;padding:8px 3px}
+  #ageCost{font-size:8px}
+  #rulerName{max-width:calc(100vw - 6px - 108px - 8px - 78px - 12px)}
+}
