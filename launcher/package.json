@@ -1,0 +1,61 @@
+{
+  "name": "birodalom-launcher",
+  "version": "1.0.0",
+  "description": "Birodalom — indító és frissítő",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "win": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win",
+    "mac": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "^32.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "hu.parthenon2.birodalom.launcher",
+    "productName": "Birodalom Launcher",
+    "files": [
+      "main.js",
+      "preload.js",
+      "launcher.html",
+      "assets/**",
+      "szerver.js",
+      "preload-jatek.js",
+      "package.json"
+    ],
+    "extraResources": [
+      "frissites.json"
+    ],
+    "directories": {
+      "output": "kimenet"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Birodalom Launcher",
+      "createDesktopShortcut": true,
+      "artifactName": "Birodalom-Launcher-${version}-telepito.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.strategy-games",
+      "identity": null,
+      "artifactName": "Birodalom-Launcher-${version}.${ext}"
+    },
+    "dmg": {
+      "title": "Birodalom"
+    }
+  },
+  "author": "Bence"
+}

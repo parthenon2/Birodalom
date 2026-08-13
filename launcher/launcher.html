@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<title>Birodalom</title>
+<style>
+/* ELRENDEZÉS
+     bal oldalt  — a játékok listája
+     középen     — a kiválasztott játék képe és neve
+     jobb alul   — a nagy gomb: JÁTÉK vagy FRISSÍTÉS
+
+   A paletta ugyanaz, mint a játékban: arany a sötéten, Georgia betű. */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-user-select:none;user-select:none}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:Georgia,'Times New Roman',serif;
+  background:#0c0a08; color:#e8dcc4;
+  display:flex; flex-direction:column;
+}
+
+/* --- FELSŐ SÁV: fogantyú és ablakgombok --- */
+#fejsav{
+  height:34px; flex:none; display:flex; align-items:center;
+  background:#100c09; border-bottom:1px solid #2a2118;
+  -webkit-app-region:drag; padding-left:14px;
+}
+#markanev{font-size:11px; letter-spacing:4px; color:#8a7a58; flex:1}
+#fejsav button{
+  -webkit-app-region:no-drag; width:38px; height:34px;
+  background:none; border:none; color:#7d6f56; font-size:16px;
+  cursor:pointer; font-family:inherit; line-height:1;
+}
+#fejsav button:hover{background:#241b12; color:#e8dcc4}
+#bezar:hover{background:#7a2c22; color:#fff}
+
+#torzs{flex:1; display:flex; min-height:0}
+
+/* --- BAL OLDAL: a játékok --- */
+#oldalsav{
+  width:216px; flex:none; background:#100c09;
+  border-right:1px solid #2a2118; padding:14px 0; overflow-y:auto;
+}
+.szakaszCim{
+  font-size:9.5px; letter-spacing:3px; color:#6b5f48;
+  padding:4px 18px 10px; text-transform:uppercase;
+}
+.jatekSor{
+  display:flex; align-items:center; gap:11px;
+  padding:11px 16px; cursor:pointer; border-left:3px solid transparent;
+}
+.jatekSor:hover{background:#181209}
+.jatekSor.aktiv{background:#1c1409; border-left-color:#c9a227}
+.jatekSor .jel{
+  width:38px; height:38px; flex:none; border-radius:3px;
+  background:linear-gradient(150deg,#3a2c16,#1a1410);
+  border:1px solid #4a3a1e; position:relative; overflow:hidden;
+}
+/* Apró váremblémát rajzolunk a jelbe — nem kell hozzá külön kép. */
+.jatekSor .jel::after{
+  content:''; position:absolute; left:9px; right:9px; bottom:9px; height:15px;
+  background:#c9a227; opacity:.75;
+  clip-path:polygon(0 100%,0 34%,17% 34%,17% 0,33% 0,33% 34%,
+    50% 34%,50% 8%,67% 8%,67% 34%,83% 34%,83% 0,100% 0,100% 100%);
+}
+.jatekSor.halvany .jel{opacity:.35}
+.jatekSor.halvany .nev{color:#6b6150}
+.jatekSor .szoveg{min-width:0}
+.jatekSor .nev{font-size:13px; color:#d8c9a4; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis}
+.jatekSor .allap{font-size:10px; color:#7d7059; margin-top:2px; letter-spacing:.4px}
+.jatekSor.aktiv .nev{color:#f0dfae}
+
+/* --- KÖZÉP: a kép --- */
+#kozep{flex:1; display:flex; flex-direction:column; min-width:0; position:relative}
+#kep{
+  flex:1; min-height:0; background:#0c0a08 center/cover no-repeat;
+  position:relative;
+}
+/* A kép alja sötétbe fut, hogy a felirat olvasható maradjon rajta. */
+#kep::after{
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(transparent 42%, rgba(12,10,8,.72) 76%, #0c0a08 100%);
+}
+#kepSzoveg{position:absolute; left:34px; right:34px; bottom:20px; z-index:2}
+#jatekCim{
+  font-size:34px; letter-spacing:9px; color:#e6c65c;
+  text-shadow:0 3px 16px rgba(0,0,0,.9);
+}
+#jatekAlcim{
+  font-size:11.5px; letter-spacing:4px; color:#a2926f;
+  margin-top:6px; text-transform:uppercase;
+}
+
+/* --- ALSÓ SÁV: állapot és a nagy gomb --- */
+#labsav{
+  flex:none; padding:16px 34px 20px; background:#0c0a08;
+  display:flex; align-items:flex-end; gap:24px;
+}
+#allapotDoboz{flex:1; min-width:0}
+#allapot{font-size:13px; color:#c4b697; letter-spacing:.4px; min-height:18px}
+#reszlet{font-size:10.5px; color:#7d7059; margin-top:4px; min-height:14px}
+#savKeret{
+  margin-top:10px; height:6px; background:#1a1510;
+  border:1px solid #3a2d1b; border-radius:2px; overflow:hidden;
+}
+#sav{height:100%; width:0%;
+  background:linear-gradient(90deg,#8a6a20,#e6c65c); transition:width .25s ease}
+#sav.pasztaz{
+  width:100% !important;
+  background:linear-gradient(90deg,transparent 0%,#e6c65c 45%,transparent 90%);
+  background-size:40% 100%; background-repeat:no-repeat;
+  animation:pasztaz 1.25s linear infinite;
+}
+@keyframes pasztaz{from{background-position:-40% 0}to{background-position:140% 0}}
+
+#fogomb{
+  flex:none; min-width:210px; padding:16px 34px;
+  font-family:inherit; font-size:16px; letter-spacing:5px; cursor:pointer;
+  color:#f0dfae; border:1px solid #c9a227; border-radius:2px;
+  background:linear-gradient(#3a2c16,#241b12);
+}
+#fogomb:hover:not(:disabled){
+  background:linear-gradient(#4d3a1f,#2e2316);
+  box-shadow:0 0 26px rgba(201,162,39,.32);
+}
+#fogomb:disabled{opacity:.4; cursor:default}
+/* Frissítéskor a gomb más színt kap: azonnal látszik, mi a teendő. */
+#fogomb.frissit{
+  border-color:#7fa855; color:#d8ecc0;
+  background:linear-gradient(#2c3a1c,#1b2412);
+}
+#fogomb.frissit:hover:not(:disabled){
+  background:linear-gradient(#3a4d26,#232e17);
+  box-shadow:0 0 26px rgba(127,168,85,.3);
+}
+</style>
+</head>
+<body>
+  <div id="fejsav">
+    <div id="markanev">BIRODALOM</div>
+    <button id="kicsinyit" title="Kicsinyítés">–</button>
+    <button id="bezar" title="Bezárás">×</button>
+  </div>
+
+  <div id="torzs">
+    <div id="oldalsav">
+      <div class="szakaszCim">Játékaim</div>
+      <div id="jatekLista"></div>
+    </div>
+
+    <div id="kozep">
+      <div id="kep">
+        <div id="kepSzoveg">
+          <div id="jatekCim">BIRODALOM</div>
+          <div id="jatekAlcim">négy évszázad · tizenkét nemzet</div>
+        </div>
+      </div>
+      <div id="labsav">
+        <div id="allapotDoboz">
+          <div id="allapot">Indulás…</div>
+          <div id="reszlet"></div>
+          <div id="savKeret"><div id="sav"></div></div>
+        </div>
+        <button id="fogomb" disabled>JÁTÉK</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const hid = window.launcher;
+
+/* A kép a saját mappánkból jön. Ha valamiért hiányzik, a háttér sötét
+   marad — a launcher attól még működik. */
+$('kep').style.backgroundImage = "url('assets/hero.png')";
+
+function allapot(sz, r){ $('allapot').textContent = sz; $('reszlet').textContent = r || ''; }
+function sav(p){
+  const s = $('sav');
+  if(p === null){ s.classList.add('pasztaz'); return; }
+  s.classList.remove('pasztaz');
+  s.style.width = Math.max(0, Math.min(100, p)) + '%';
+}
+function mb(b){ return (b/1048576).toFixed(1) + ' MB'; }
+
+/* A GOMB két szerepet visz: FRISSÍTÉS, ha van új; JÁTÉK, ha nincs.
+   Két külön gomb helyett egy, mert egyszerre mindig csak az egyik
+   értelmes — így nem kell választani. */
+let gombSzerep = 'jatek';
+function gomb(szerep, aktiv){
+  gombSzerep = szerep;
+  const g = $('fogomb');
+  g.textContent = (szerep === 'frissit') ? 'FRISSÍTÉS' : 'JÁTÉK';
+  g.classList.toggle('frissit', szerep === 'frissit');
+  g.disabled = !aktiv;
+}
+
+$('bezar').onclick = () => hid.kilep();
+$('kicsinyit').onclick = () => hid.kicsinyit();
+
+$('fogomb').onclick = async () => {
+  if(gombSzerep === 'frissit'){ frissit(); return; }
+  const j = valasztottJatek();
+  $('fogomb').disabled = true;
+  allapot('A játék indul…');
+  sav(null);
+  const r = await hid.indit(j ? j.id : 'birodalom', j ? j.exe : 'Birodalom');
+  if(r && r.hiba){
+    sav(100);
+    allapot('A játék nem indult el.', r.hiba);
+    gomb('jatek', true);
+  }
+};
+
+hid.halad((a) => {
+  if(a.ossz) sav(a.eddig / a.ossz * 100); else sav(null);
+  allapot(a.cimke || 'Letöltés…',
+    a.ossz ? (mb(a.eddig) + ' / ' + mb(a.ossz)) : mb(a.eddig));
+});
+
+/* --- A JÁTÉKOK LISTÁJA ---
+   A bal oldali sáv a JEGYZÉKBŐL épül fel, nem a kódból. Új játékot úgy
+   adsz hozzá, hogy a jegyzékfájlba beírsz egy bejegyzést — a launchert
+   nem kell újraépíteni. */
+let jatekok = [];
+let valasztott = null;
+
+function valasztottJatek(){
+  return jatekok.filter(j => j.id === valasztott)[0] || jatekok[0] || null;
+}
+
+function listaRajzol(){
+  const doboz = $('jatekLista');
+  doboz.innerHTML = '';
+  for(const j of jatekok){
+    const sor = document.createElement('div');
+    sor.className = 'jatekSor' + (j.id === valasztott ? ' aktiv' : '');
+    const jel = document.createElement('div'); jel.className = 'jel';
+    const szoveg = document.createElement('div'); szoveg.className = 'szoveg';
+    const nev = document.createElement('div'); nev.className = 'nev'; nev.textContent = j.nev;
+    const all = document.createElement('div'); all.className = 'allap';
+    all.textContent = j.allapotSzoveg || '';
+    szoveg.appendChild(nev); szoveg.appendChild(all);
+    sor.appendChild(jel); sor.appendChild(szoveg);
+    sor.onclick = () => { valasztott = j.id; listaRajzol(); kozepRajzol(); };
+    doboz.appendChild(sor);
+  }
+}
+
+function kozepRajzol(){
+  const j = valasztottJatek();
+  if(!j) return;
+  $('jatekCim').textContent = j.nev.toUpperCase();
+  $('jatekAlcim').textContent = j.alcim || '';
+  /* A kép a jegyzékből is jöhet — így minden játéknak saját arca lehet.
+     Ha nincs megadva vagy nem tölthető le, marad a beépített. */
+  const kep = $('kep');
+  if(j.kep){
+    const proba = new Image();
+    proba.onload = () => { kep.style.backgroundImage = "url('" + j.kep + "')"; };
+    proba.onerror = () => { kep.style.backgroundImage = "url('assets/hero.png')"; };
+    proba.src = j.kep;
+  }else{
+    kep.style.backgroundImage = "url('assets/hero.png')";
+  }
+  allapotFrissit();
+}
+
+/* A gomb és az állapotsor MINDIG a kiválasztott játékra vonatkozik. */
+function allapotFrissit(){
+  const j = valasztottJatek();
+  if(!j){ gomb('jatek', false); return; }
+  if(j.ujVan){
+    allapot(j.helyi ? ('Új változat: v' + j.tavoli) : 'Még nincs letöltve',
+      j.megjegyzes || (j.helyi ? '' : 'A JÁTÉK gombhoz előbb le kell tölteni.'));
+    gomb('frissit', true);
+  }else if(j.helyi){
+    allapot(j.nev + ' — naprakész.', 'Jó szórakozást!');
+    gomb('jatek', true);
+  }else{
+    /* Nincs letöltve, és nincs is honnan: a telepített játékot
+       próbáljuk elindítani. */
+    allapot('Készen áll.', '');
+    gomb('jatek', true);
+  }
+}
+
+async function frissit(){
+  const j = valasztottJatek();
+  if(!j) return;
+  $('fogomb').disabled = true;
+  j.allapotSzoveg = 'frissítés…'; listaRajzol();
+  sav(0);
+  const t = await hid.letolt(j.id);
+  if(t.hiba){
+    sav(100);
+    allapot('A frissítés nem sikerült.',
+      t.hiba + (j.helyi ? ' — a meglévővel indulhatsz.' : ''));
+    j.allapotSzoveg = j.helyi ? ('v' + j.helyi) : 'nincs letöltve';
+    listaRajzol();
+    /* Akkor is lehet játszani, ha a frissítés elakadt — feltéve, hogy
+       van már letöltött változat. */
+    gomb('jatek', !!j.helyi);
+    return;
+  }
+  sav(100);
+  j.helyi = t.verzio; j.ujVan = false;
+  j.allapotSzoveg = 'v' + t.verzio;
+  listaRajzol();
+  allapot('Frissítve: v' + t.verzio, 'Indulhat a játék.');
+  gomb('jatek', true);
+}
+
+async function start(){
+  gomb('jatek', false);
+  sav(null);
+  allapot('Frissítés keresése…');
+
+  const r = await hid.ellenoriz();
+  jatekok = (r.jatekok || []).map(j => Object.assign({}, j, {
+    allapotSzoveg: j.ujVan
+      ? (j.helyi ? ('v' + j.helyi + ' → v' + j.tavoli) : 'letöltésre vár')
+      : (j.helyi ? ('v' + j.helyi) : 'telepített')
+  }));
+  if(!jatekok.length){
+    sav(100);
+    allapot('Nem sikerült beolvasni a játékok listáját.', r.hiba || '');
+    return;
+  }
+  if(!valasztott) valasztott = jatekok[0].id;
+  listaRajzol();
+  kozepRajzol();
+  sav(100);
+
+  if(r.hiba){
+    allapot('Nem sikerült elérni a frissítést.',
+      r.hiba + (valasztottJatek().helyi ? ' — a meglévő változattal indulhatsz.' : ''));
+  }
+}
+start();
+</script>
+</body>
+</html>

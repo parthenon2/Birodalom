@@ -1,0 +1,50 @@
+{
+  "_megjegyzes": [
+    "TÖBB JÁTÉK EGY JEGYZÉKBEN.",
+    "",
+    "A launcher bal oldali sávja EBBŐL a listából épül fel. Új játékot úgy",
+    "adsz hozzá, hogy ide beírsz egy bejegyzést — a launchert NEM kell",
+    "újraépíteni, a játékosoknál a következő indításnál megjelenik.",
+    "",
+    "Egy bejegyzés mezői:",
+    "  id      kötelező  rövid azonosító (csak betű, szám, - és _)",
+    "  nev     kötelező  ez látszik a listában",
+    "  verzio  kötelező  ha ezt átírod, a launcher frissítést ajánl",
+    "  jatek   kötelező  az index.html közvetlen címe",
+    "  alcim   nem       a kép alatt jelenik meg",
+    "  kep     nem       saját háttérkép címe (különben a beépített)",
+    "  exe     nem       a TELEPÍTETT játék mappaneve, ha van ilyen",
+    "  zene    nem       fájlnevek; ami már megvan, azt nem tölti le újra",
+    "",
+    "Minden játék KÜLÖN mappába kerül, tehát nem írják felül egymást."
+  ],
+  "jatekok": [
+    {
+      "id": "birodalom",
+      "nev": "Birodalom",
+      "alcim": "négy évszázad · tizenkét nemzet",
+      "verzio": "2.1",
+      "jatek": "https://IDE-JON-A-CIMED/index.html",
+      "exe": "Birodalom",
+      "zeneUrl": "https://IDE-JON-A-CIMED/zene/",
+      "zene": [
+        "15-old-kingdom.mp3",
+        "19-mozart-vonosnegyes.mp3",
+        "20-csatadobok.mp3",
+        "cercles-nouvelles.mp3",
+        "kalozok.mp3",
+        "marines.mp3",
+        "power-of-nature.mp3",
+        "village-consort.mp3"
+      ]
+    },
+    {
+      "_megjegyzes": "PÉLDA egy másik játékra. Töröld, vagy írd át a sajátodra.",
+      "id": "masik",
+      "nev": "Másik játék",
+      "alcim": "rövid leírás a kép alá",
+      "verzio": "1.0",
+      "jatek": "https://IDE-JON-A-CIMED/masik/index.html"
+    }
+  ]
+}
