@@ -1,0 +1,71 @@
+{
+  "name": "birodalom",
+  "version": "1.0.0",
+  "description": "Birodalom — valós idejű stratégiai játék, 1400–1945",
+  "private": true,
+  "scripts": {
+    "build": "node build.js && node ios-www.js",
+    "ios": "npm run build && npx cap sync ios && npx cap open ios",
+    "ios:setup": "bash ios-setup.sh",
+    "android": "npm run build && npx cap sync android && npx cap open android",
+    "android:setup": "bash android-setup.sh",
+    "desktop": "npm run build && electron .",
+    "win": "npm run build && electron-builder --win",
+    "mac": "npm run build && electron-builder --mac",
+    "halozat-proba": "npm run build && node halozat-proba.js"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.0",
+    "electron": "^32.0.0",
+    "electron-builder": "^25.0.0",
+    "jsdom": "^25.0.0"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.1.0",
+    "@capacitor/ios": "^6.1.0",
+    "@capacitor/status-bar": "^6.0.0",
+    "@capacitor/splash-screen": "^6.0.0",
+    "@capacitor/android": "^6.1.0"
+  },
+  "main": "asztali/main.js",
+  "build": {
+    "appId": "hu.parthenon2.birodalom",
+    "productName": "Birodalom",
+    "files": [
+      "asztali/**",
+      "www/**",
+      "assets/icon.png",
+      "assets/icon.ico",
+      "frissites.json",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "kimenet"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "shortcutName": "Birodalom",
+      "createDesktopShortcut": true
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.strategy-games",
+      "identity": null
+    }
+  }
+}
