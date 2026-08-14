@@ -47,6 +47,15 @@
       "kep": "https://parthenon2.github.io/Rougelike/hatter.png",
       "verzio": "1.1",
       "jatek": "https://parthenon2.github.io/Rougelike/dungeon_crawler_browser.html"
+    },
+    {
+      "_megjegyzes": "PÉLDA egy másik játékra. Töröld, vagy írd át a sajátodra.",
+      "id": "Koronák Háborúja",
+      "nev": "Koronák Háborúja",
+      "alcim": "A Széttört Birodalmak",
+      "kep": "https://parthenon2.github.io/Rougelike/hatter.png",
+      "verzio": "1.1",
+      "jatek": "https://parthenon2.github.io/Rougelike/dungeon_crawler_browser.html"
     }
   ]
 }
