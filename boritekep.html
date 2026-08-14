@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Birodalom</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Palatino Linotype',Palatino,Georgia,serif}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+#ui{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#title{
+  text-align:center;
+  text-shadow:0 0 60px rgba(200,150,40,.7),0 0 120px rgba(160,100,20,.4);
+}
+#title h1{
+  font-size:clamp(44px,9vw,130px);
+  font-weight:700;letter-spacing:.15em;
+  background:linear-gradient(175deg,#fff5cc 0%,#f0d060 30%,#c8a020 65%,#8b6010 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  line-height:1;
+}
+#title p{
+  font-size:clamp(10px,1.3vw,17px);
+  letter-spacing:.35em;color:rgba(210,175,80,.7);
+  margin-top:1vh;text-transform:uppercase;
+}
+#era{
+  position:absolute;top:3vh;left:50%;transform:translateX(-50%);
+  font-size:clamp(9px,1.1vw,14px);letter-spacing:.3em;
+  color:rgba(200,165,70,.5);text-transform:uppercase;
+  transition:opacity .8s;
+}
+#dots{
+  position:absolute;bottom:3vh;left:50%;transform:translateX(-50%);
+  display:flex;gap:8px;
+}
+.dot{width:5px;height:5px;border-radius:50%;background:rgba(180,140,50,.3);border:1px solid rgba(200,160,60,.4);transition:all .5s;}
+.dot.on{background:rgba(220,180,60,.85);transform:scale(1.4);}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="era"></div>
+  <div id="title"><h1>BIRODALOM</h1><p>1400–1945 &nbsp;·&nbsp; Négy évszázad &nbsp;·&nbsp; Tizenkét nemzet</p></div>
+  <div id="dots"></div>
+</div>
+<script>
+const cv=document.getElementById('c');
+const g=cv.getContext('2d');
+const eraEl=document.getElementById('era');
+const dotsEl=document.getElementById('dots');
+let W,H,T=0,dT=0,prev=0;
+
+function resize(){W=cv.width=innerWidth;H=cv.height=innerHeight;}
+addEventListener('resize',resize);resize();
+
+// ── Util ─────────────────────────────────────────────────────────────────────
+const TAU=Math.PI*2;
+const lerp=(a,b,t)=>a+(b-a)*t;
+
+// Determinisztikus pseudo-random (seed-alapú, hogy konzisztens legyen)
+function hash(n){n=(n^61)^(n>>16);n+=n<<3;n^=n>>4;n*=0x27d4eb2d;return((n^(n>>15))>>>0)/4294967296;}
+
+// FBM zaj (előre kiszámolt táblából)
+const NZ=[];for(let i=0;i<512;i++) NZ[i]=hash(i)*2-1;
+function noise(x,y){
+  const xi=Math.floor(x)&255,yi=Math.floor(y)&255;
+  return NZ[(xi+yi*57)&511];
+}
+function fbm(x,y,o=4){
+  let v=0,a=.6,f=1,m=0;
+  for(let i=0;i<o;i++){v+=a*noise(x*f,y*f);m+=a;a*=.5;f*=2;}
+  return v/m;
+}
+
+// ── Jelenet-kezelő ───────────────────────────────────────────────────────────
+const DUR=10, FADE=1.4;
+let si=0,st=0;
+
+const SCENES=[
+  {era:'14–15. század · A felfedezések kora',  fn:drawRenaissance},
+  {era:'16–17. század · Vitorlás birodalmak',   fn:drawSail},
+  {era:'18. század · Felvilágosodás és háborúk',fn:drawEnlighten},
+  {era:'19. század · Ipar és gőz',              fn:drawIndustrial},
+  {era:'20. század · A nagy háborúk kora',      fn:drawModern},
+];
+
+SCENES.forEach((_,i)=>{
+  const d=document.createElement('div');
+  d.className='dot'+(i===0?' on':'');
+  dotsEl.appendChild(d);
+});
+eraEl.textContent=SCENES[0].era;
+
+function nextScene(){
+  si=(si+1)%SCENES.length;st=0;
+  [...dotsEl.children].forEach((d,i)=>d.classList.toggle('on',i===si));
+  eraEl.style.opacity='0';
+  setTimeout(()=>{eraEl.textContent=SCENES[si].era;eraEl.style.opacity='1';},500);
+}
+
+// ── Közös elemek ─────────────────────────────────────────────────────────────
+function vignette(){
+  const v=g.createRadialGradient(W/2,H*.5,H*.1,W/2,H*.5,H*.85);
+  v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,.82)');
+  g.fillStyle=v;g.fillRect(0,0,W,H);
+}
+
+function grain(){
+  g.save();g.globalAlpha=.022;
+  const sz=3,cols=(W/sz)|0,rows=(H/sz)|0;
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+    if(hash(x*1000+y+T*100)>.5){g.fillStyle='rgba(255,255,255,1)';g.fillRect(x*sz,y*sz,sz,sz);}
+  }
+  g.restore();
+}
+
+function stars(alpha,yMax=.55){
+  g.save();g.globalAlpha=alpha;
+  for(let i=0;i<280;i++){
+    const sx=hash(i*137)*W, sy=hash(i*239)*H*yMax;
+    const br=.3+.7*Math.abs(Math.sin(T*1.2+i));
+    g.fillStyle=`rgba(240,230,200,${br})`;
+    g.fillRect(sx|0,sy|0,i%9===0?2:1,i%9===0?2:1);
+  }
+  g.restore();
+}
+
+// ── 1. RENESZÁNSZ — arany városok napkeltekor ────────────────────────────────
+function drawRenaissance(a){
+  // Hajnali ég — mélybíboron át aranyba
+  const sky=g.createLinearGradient(0,0,0,H*.65);
+  sky.addColorStop(0,`rgba(8,4,18,${a})`);
+  sky.addColorStop(.3,`rgba(25,10,35,${a})`);
+  sky.addColorStop(.6,`rgba(80,30,15,${a})`);
+  sky.addColorStop(.82,`rgba(180,80,15,${a})`);
+  sky.addColorStop(1,`rgba(220,130,20,${a})`);
+  g.fillStyle=sky;g.fillRect(0,0,W,H*.65);
+
+  stars(a*.4,.45);
+
+  // Nap — halvány korong a horizonton
+  const sx=W*.62,sy=H*.62;
+  const sg=g.createRadialGradient(sx,sy,0,sx,sy,H*.28);
+  sg.addColorStop(0,`rgba(255,220,100,${a*.65})`);
+  sg.addColorStop(.35,`rgba(220,120,20,${a*.3})`);
+  sg.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=sg;g.fillRect(0,H*.3,W,H*.4);
+
+  // Dombos tájkép városkával
+  _hills([[.6,'rgba(20,12,5,X)'],[.64,'rgba(28,16,6,X)'],[.69,'rgba(35,20,8,X)'],[.74,'rgba(25,14,5,X)']],a);
+
+  // Középkori város sziluettje
+  g.save();g.fillStyle=`rgba(10,6,2,${a})`;
+  const cx=W*.28, base=H*.62;
+  // Tornyok és házak
+  const bldgs=[
+    {x:-.18,w:.025,h:.18,tower:true},
+    {x:-.12,w:.018,h:.12,tower:false},
+    {x:-.07,w:.022,h:.15,tower:true},
+    {x:-.02,w:.015,h:.10,tower:false},
+    {x:.03,w:.028,h:.20,tower:true},  // főtorony
+    {x:.08,w:.016,h:.11,tower:false},
+    {x:.12,w:.020,h:.14,tower:true},
+    {x:.17,w:.014,h:.09,tower:false},
+  ];
+  bldgs.forEach(b=>{
+    const bx=cx+b.x*W, bw=b.w*W, bh=b.h*H;
+    g.fillRect(bx,base-bh,bw,bh);
+    if(b.tower){
+      // csúcs
+      g.beginPath();g.moveTo(bx-2,base-bh);
+      g.lineTo(bx+bw/2,base-bh-H*.05);
+      g.lineTo(bx+bw+2,base-bh);g.fill();
+    }
+  });
+  g.restore();
+
+  // Talaj
+  g.fillStyle=`rgba(12,7,2,${a})`;g.fillRect(0,H*.74,W,H*.26);
+
+  // Arany reflexió a vízen
+  const rg=g.createLinearGradient(W*.3,H*.65,W*.8,H*.75);
+  rg.addColorStop(0,'rgba(0,0,0,0)');
+  rg.addColorStop(.4,`rgba(200,120,20,${a*.12+.03*Math.sin(T*.8)})`);
+  rg.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=rg;g.fillRect(0,H*.65,W,H*.12);
+}
+
+// ── 2. VITORLÁSOK — viharos óceán éjjel ─────────────────────────────────────
+const RAIN=[];
+function drawSail(a){
+  // Viharos éjszakai ég
+  const sky=g.createLinearGradient(0,0,0,H*.6);
+  sky.addColorStop(0,`rgba(2,4,12,${a})`);
+  sky.addColorStop(.5,`rgba(6,10,22,${a})`);
+  sky.addColorStop(1,`rgba(10,14,28,${a})`);
+  g.fillStyle=sky;g.fillRect(0,0,W,H*.6);
+
+  stars(a*.7);
+
+  // Hold
+  const mx=W*.75,my=H*.18;
+  g.save();g.globalAlpha=a*.5;
+  const mg=g.createRadialGradient(mx,my,0,mx,my,H*.06);
+  mg.addColorStop(0,'rgba(240,230,200,.9)');mg.addColorStop(.6,'rgba(220,210,180,.4)');mg.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=mg;g.beginPath();g.arc(mx,my,H*.032,0,TAU);g.fill();
+  g.restore();
+
+  // Viharfelhők
+  for(let i=0;i<6;i++){
+    const clx=((i*.18+.04)+Math.sin(T*.04+i)*.02)*W;
+    const cly=(.1+Math.sin(T*.03+i*.9)*.015)*H;
+    const cr=(.09+i*.01)*W;
+    const cg2=g.createRadialGradient(clx,cly,0,clx,cly,cr);
+    cg2.addColorStop(0,`rgba(20,18,28,${a*.88})`);cg2.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=cg2;g.beginPath();g.ellipse(clx,cly,cr,cr*.48,0,0,TAU);g.fill();
+  }
+
+  // Tenger hullámok
+  for(let layer=4;layer>=0;layer--){
+    const yB=H*(.56+layer*.05),amp=H*(.015-layer*.002);
+    const sp=T*(.6+layer*.2);
+    g.beginPath();g.moveTo(0,H);
+    for(let x=0;x<=W;x+=3){
+      const n=fbm(x/W*3+T*.02,layer*.4)*amp*.6;
+      const w=amp*Math.sin(x/W*5+sp)+amp*.4*Math.sin(x/W*10+sp*1.5);
+      g.lineTo(x,yB+w+n);
+    }
+    g.lineTo(W,H);g.closePath();
+    const r=6+layer*4,b=20+layer*8;
+    g.fillStyle=`rgba(${r},${r+4},${b},${a})`;g.fill();
+  }
+
+  // Eső
+  while(RAIN.length<220) RAIN.push({x:Math.random()*W,y:Math.random()*H*.6,vx:50,vy:600+Math.random()*300,life:Math.random()});
+  g.save();g.strokeStyle=`rgba(160,175,200,${a*.22})`;g.lineWidth=.7;
+  RAIN.forEach(r=>{
+    r.x+=r.vx*dT;r.y+=r.vy*dT;r.life-=dT;
+    if(r.life<0){r.x=Math.random()*W;r.y=-10;r.life=.5+Math.random()*.5;}
+    g.beginPath();g.moveTo(r.x,r.y);g.lineTo(r.x+r.vx*.04,r.y+r.vy*.04);g.stroke();
+  });
+  g.restore();
+
+  // Vitorláshajó
+  const bob=Math.sin(T*.85)*H*.012;
+  const roll=Math.sin(T*.65)*0.04;
+  g.save();g.translate(W*.45,H*.545+bob);g.rotate(roll);
+  _ship(a);
+  g.restore();
+
+  // Villám
+  if(Math.sin(T*.6)*Math.sin(T*3.3)>.9){
+    g.save();g.globalAlpha=a*.65*Math.random();
+    g.strokeStyle='rgba(210,225,255,.9)';g.lineWidth=.9;
+    _lightning(W*.38,H*.05,W*.38+(-1+Math.random()*2)*80,H*.52,5);
+    g.restore();
+  }
+}
+
+function _ship(a){
+  const W2=W,H2=H;
+  // Törzs
+  g.beginPath();
+  g.moveTo(-W2*.1,0);g.quadraticCurveTo(-W2*.11,H2*.038,0,H2*.042);
+  g.quadraticCurveTo(W2*.11,H2*.038,W2*.1,0);
+  g.lineTo(W2*.08,-H2*.01);g.lineTo(-W2*.095,-H2*.01);g.closePath();
+  const hg=g.createLinearGradient(0,-H2*.01,0,H2*.042);
+  hg.addColorStop(0,'#5a3a18');hg.addColorStop(1,'#2a1808');
+  g.fillStyle=hg;g.fill();
+  // Főárboc
+  g.strokeStyle='#6b4820';g.lineWidth=2.8;
+  g.beginPath();g.moveTo(0,0);g.lineTo(0,-H2*.3);g.stroke();
+  // Orrárboc
+  g.lineWidth=2.2;g.beginPath();g.moveTo(-W2*.08,-H2*.01);g.lineTo(-W2*.16,-H2*.17);g.stroke();
+  // Vitorlák
+  const bl=Math.sin(T*1.1)*.04;
+  g.beginPath();g.moveTo(0,-H2*.03);
+  g.quadraticCurveTo(W2*(.08+bl),-H2*.14,0,-H2*.265);g.closePath();
+  const sg=g.createLinearGradient(-W2*.07,-H2*.265,W2*.08,-H2*.03);
+  sg.addColorStop(0,'rgba(195,170,125,'+a*.88+')');sg.addColorStop(1,'rgba(155,125,82,'+a*.8+')');
+  g.fillStyle=sg;g.fill();
+  g.strokeStyle='rgba(80,50,15,.4)';g.lineWidth=.8;g.stroke();
+  // Kis vitorla
+  g.beginPath();g.moveTo(0,-H2*.265);g.quadraticCurveTo(W2*(.048+bl*.7),-H2*.285,0,-H2*.3);g.closePath();
+  g.fillStyle=`rgba(190,162,115,${a*.8})`;g.fill();g.stroke();
+  // Orrvitorla
+  g.beginPath();g.moveTo(-W2*.08,-H2*.01);
+  g.quadraticCurveTo(-W2*(.12+bl*.6),-H2*.09,-W2*.16,-H2*.17);
+  g.quadraticCurveTo(-W2*.04,-H2*.1,-W2*.08,-H2*.01);g.closePath();
+  g.fillStyle=`rgba(185,158,110,${a*.78})`;g.fill();g.stroke();
+  // Zászló
+  const fx=Math.sin(T*3)*W2*.012;
+  g.beginPath();g.moveTo(0,-H2*.3);g.lineTo(fx+W2*.035,-H2*.287);g.lineTo(fx+W2*.03,-H2*.298);g.closePath();
+  g.fillStyle='#b82020';g.fill();
+}
+
+function _lightning(x1,y1,x2,y2,d){
+  if(d<=0){g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke();return;}
+  const mx=(x1+x2)/2+(Math.random()-.5)*55,my=(y1+y2)/2+(Math.random()-.5)*18;
+  _lightning(x1,y1,mx,my,d-1);_lightning(mx,my,x2,y2,d-1);
+}
+
+// ── 3. FELVILÁGOSODÁS — alkonyati csatajelenet ───────────────────────────────
+const EMBERS=[];
+function drawEnlighten(a){
+  // Alkonyat — narancs-vörös
+  const sky=g.createLinearGradient(0,0,0,H*.62);
+  sky.addColorStop(0,`rgba(6,3,8,${a})`);
+  sky.addColorStop(.2,`rgba(18,6,5,${a})`);
+  sky.addColorStop(.55,`rgba(90,28,8,${a})`);
+  sky.addColorStop(.8,`rgba(175,65,12,${a})`);
+  sky.addColorStop(1,`rgba(200,85,18,${a})`);
+  g.fillStyle=sky;g.fillRect(0,0,W,H*.62);
+
+  stars(a*.25,.4);
+
+  // Nap ambient
+  const sg=g.createRadialGradient(W*.72,H*.58,0,W*.72,H*.58,H*.2);
+  sg.addColorStop(0,`rgba(255,140,30,${a*.45})`);
+  sg.addColorStop(.5,`rgba(200,65,10,${a*.15})`);
+  sg.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=sg;g.fillRect(0,H*.35,W,H*.3);
+
+  // Dombos csatatér
+  _hills([[.58,'rgba(14,7,3,X)'],[.63,'rgba(20,10,4,X)'],[.68,'rgba(28,14,6,X)'],[.73,'rgba(18,9,3,X)']],a);
+
+  // Füstpamacsok
+  while(EMBERS.length<60) EMBERS.push({x:Math.random()*W,y:H*(.62+Math.random()*.08),vx:(Math.random()-.5)*15,vy:-(20+Math.random()*25),r:12+Math.random()*20,life:1+Math.random()*1.5,alpha:.06+Math.random()*.1});
+  g.save();
+  EMBERS.forEach((e,i)=>{
+    e.y+=e.vy*dT;e.x+=e.vx*dT;e.r+=dT*8;e.life-=dT*.3;
+    if(e.life<=0){e.life=1.5;e.y=H*(.62+Math.random()*.06);e.x=Math.random()*W;e.r=10;}
+    g.globalAlpha=a*e.life*.5*e.alpha;
+    const v=45+hash(i*7)*20|0;
+    g.fillStyle=`rgba(${v},${v-5},${v-10},1)`;
+    g.beginPath();g.arc(e.x,e.y,e.r,0,TAU);g.fill();
+  });
+  g.restore();
+
+  // Parázs részecskék
+  g.save();
+  for(let i=0;i<8;i++){
+    const px=(i*.12+.08+Math.sin(T*.4+i)*.02)*W;
+    const py=H*(.66+Math.sin(T*.7+i)*.01);
+    const fl=g.createRadialGradient(px,py,0,px,py,H*.04);
+    fl.addColorStop(0,`rgba(255,160,20,${a*.4*(.5+.5*Math.sin(T*6+i))})`);
+    fl.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=fl;g.beginPath();g.arc(px,py,H*.04,0,TAU);g.fill();
+  }
+  g.restore();
+
+  // Katonák sziluettje
+  g.save();g.fillStyle=`rgba(5,3,1,${a})`;
+  for(let i=0;i<55;i++){
+    const side=i<28?0:1;
+    const bx=(side===0?(0.04+hash(i*13)*.42):(0.54+hash(i*17)*.42))*W;
+    const by=H*.695+Math.sin(T*4+i)*.003*H;
+    const sz=H*(.025-hash(i*3)*.005);
+    // Test
+    g.fillRect(bx-sz*.3,by-sz,sz*.6,sz);
+    // Fej
+    g.beginPath();g.arc(bx,by-sz*1.2,sz*.32,0,TAU);g.fill();
+    // Szurony
+    g.fillRect(bx-sz*.04,by-sz,sz*.08,sz*.7);
+  }
+  g.restore();
+
+  g.fillStyle=`rgba(6,3,1,${a})`;g.fillRect(0,H*.73,W,H*.27);
+}
+
+// ── 4. IPARI — gőzkor, gyárak, mozdony ───────────────────────────────────────
+const SMOKE=[];
+function drawIndustrial(a){
+  // Sötétszürke füstös ég
+  const sky=g.createLinearGradient(0,0,0,H*.62);
+  sky.addColorStop(0,`rgba(5,5,7,${a})`);
+  sky.addColorStop(.45,`rgba(12,10,9,${a})`);
+  sky.addColorStop(1,`rgba(20,14,10,${a})`);
+  g.fillStyle=sky;g.fillRect(0,0,W,H*.62);
+
+  stars(a*.15);
+
+  // Hold
+  g.save();g.globalAlpha=a*.3;
+  g.fillStyle='#c8bfa0';g.beginPath();g.arc(W*.15,H*.14,H*.03,0,TAU);g.fill();
+  g.restore();
+
+  // Izzó horizont
+  const hz=g.createLinearGradient(0,H*.52,0,H*.65);
+  hz.addColorStop(0,'rgba(0,0,0,0)');
+  hz.addColorStop(.4,`rgba(180,55,8,${a*.2})`);
+  hz.addColorStop(.7,`rgba(220,90,15,${a*.25})`);
+  hz.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=hz;g.fillRect(0,H*.52,W,H*.14);
+
+  // Gyárépületek
+  g.fillStyle=`rgba(6,5,4,${a})`;
+  for(let i=0;i<14;i++){
+    const bx=(i*.073)*W,bw=W*.055;
+    const bh=(.08+Math.abs(fbm(i*.35,.2))*.16)*H;
+    const by=H*.62-bh;
+    g.fillRect(bx,by,bw,bh);
+    // Ablakok
+    const rows=Math.floor(bh/(H*.055)),cols=3;
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+      const on=Math.sin(T*.25+i*2+r+c)>-.15;
+      g.fillStyle=on?`rgba(255,185,70,${a*.6})`:`rgba(20,15,8,${a*.5})`;
+      g.fillRect(bx+c*(bw/cols)+bw*.12,by+r*(bh/rows)+bh/(rows*1.5),bw*.22,bh/(rows*2));
+    }
+    g.fillStyle=`rgba(6,5,4,${a})`;
+  }
+
+  // Kémények és füst
+  const chimneys=[.09,.20,.30,.40,.50,.60,.70,.80,.90];
+  chimneys.forEach((cx2,ci)=>{
+    const ch=(.14+hash(ci*7)*.1)*H;
+    const cw=W*.014;
+    const cy2=H*.62-ch;
+    g.fillStyle=`rgba(8,6,5,${a})`;
+    g.fillRect(cx2*W-cw/2,cy2,cw,ch);
+    // Füst
+    if(hash(ci*3+Math.floor(T*.8))>.3){
+      for(let k=0;k<3;k++){
+        SMOKE.push({x:cx2*W+(Math.random()-.5)*5,y:cy2,vx:(Math.random()-.5)*10,vy:-(18+Math.random()*22),r:8+Math.random()*14,life:1.5+Math.random(),alpha:.04+Math.random()*.1});
+      }
+    }
+  });
+  while(SMOKE.length>500) SMOKE.shift();
+  g.save();
+  SMOKE.forEach((s,i)=>{
+    s.y+=s.vy*dT;s.x+=s.vx*dT;s.r+=dT*7;s.life-=dT*.28;
+    if(s.life<=0) return;
+    g.globalAlpha=a*s.life*.4*s.alpha;
+    const v=50+hash(i*3)*25|0;
+    g.fillStyle=`rgba(${v},${v-3},${v-6},1)`;
+    g.beginPath();g.arc(s.x,s.y,s.r,0,TAU);g.fill();
+  });
+  for(let i=SMOKE.length-1;i>=0;i--) if(SMOKE[i].life<=0) SMOKE.splice(i,1);
+  g.restore();
+
+  // Talaj és sínek
+  g.fillStyle=`rgba(5,4,3,${a})`;g.fillRect(0,H*.62,W,H*.38);
+  g.fillStyle=`rgba(30,22,14,${a*.6})`;g.fillRect(0,H*.68,W,H*.006);g.fillRect(0,H*.695,W,H*.006);
+
+  // Mozdony
+  const trx=((T*.032)%1.18-.1)*W;
+  g.save();g.fillStyle=`rgba(8,6,5,${a})`;
+  g.fillRect(trx,H*.648,W*.19,H*.038);
+  g.fillRect(trx+W*.004,H*.632,W*.052,H*.018);
+  g.fillRect(trx-W*.01,H*.656,W*.014,H*.03);
+  g.fillStyle=`rgba(5,4,3,${a})`;
+  [.012,.065,.122,.162].forEach(ox=>{
+    g.beginPath();g.arc(trx+ox*W,H*.688,H*.017,0,TAU);g.fill();
+  });
+  // Gőz
+  if(trx>-W*.05&&trx<W*1.1){
+    g.globalAlpha=a*.3*Math.random();
+    g.fillStyle='rgba(160,145,130,1)';
+    g.beginPath();g.arc(trx-W*.01,H*.635,H*.02,0,TAU);g.fill();
+    g.beginPath();g.arc(trx-W*.025,H*.618,H*.016,0,TAU);g.fill();
+  }
+  g.restore();
+}
+
+// ── 5. MODERN — éjszakai bombázás, repülők ───────────────────────────────────
+const EXPL=[];let nextE=1.5;
+function drawModern(a){
+  // Sötétkék-szürke ég
+  const sky=g.createLinearGradient(0,0,0,H*.62);
+  sky.addColorStop(0,`rgba(3,4,8,${a})`);
+  sky.addColorStop(.5,`rgba(7,9,13,${a})`);
+  sky.addColorStop(1,`rgba(11,10,9,${a})`);
+  g.fillStyle=sky;g.fillRect(0,0,W,H*.62);
+
+  stars(a*.3);
+
+  // Nehézfelhők
+  for(let i=0;i<7;i++){
+    const clx=((i*.16+.04)+T*.012*(i%2?1:-1))*W%W;
+    const cly=(.1+Math.sin(T*.03+i*.8)*.014)*H;
+    const cr=(.082+i*.01)*W;
+    const cg2=g.createRadialGradient(clx,cly,0,clx,cly,cr);
+    cg2.addColorStop(0,`rgba(28,24,20,${a*.86})`);cg2.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=cg2;g.beginPath();g.ellipse(clx,cly,cr,cr*.48,0,0,TAU);g.fill();
+  }
+
+  // Város romjai
+  g.fillStyle=`rgba(7,5,4,${a})`;
+  for(let i=0;i<18;i++){
+    const bx=(i*.057)*W,bw=W*.042;
+    const bh=(.04+Math.abs(fbm(i*.42,.3))*.16)*H;
+    // Fogazott romtető
+    g.beginPath();g.moveTo(bx,H*.62);g.lineTo(bx,H*.62-bh);
+    const steps=3+i%3;
+    for(let s=0;s<=steps;s++){
+      const rx=bx+s*(bw/steps);
+      const ry=H*.62-bh+(hash(i*4+s)*.5)*bh*.5;
+      g.lineTo(rx,ry);
+    }
+    g.lineTo(bx+bw,H*.62);g.closePath();g.fill();
+  }
+
+  // Tüzek a romokban
+  for(let i=0;i<5;i++){
+    const fx=(.1+i*.18)*W,fy=H*.636;
+    const fl=.5+.5*Math.sin(T*7+i);
+    const fg=g.createRadialGradient(fx,fy,0,fx,fy,H*.055*fl);
+    fg.addColorStop(0,`rgba(255,140,20,${a*.55*fl})`);
+    fg.addColorStop(.5,`rgba(200,50,8,${a*.2*fl})`);
+    fg.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=fg;g.beginPath();g.arc(fx,fy,H*.055*fl,0,TAU);g.fill();
+  }
+
+  // Robbanások
+  if(T>nextE){nextE=T+1.8+Math.random()*3.5;EXPL.push({x:(.1+Math.random()*.8)*W,y:H*(.52+Math.random()*.1),life:1,maxR:H*(.04+Math.random()*.06)});}
+  g.save();
+  EXPL.forEach((e,i)=>{
+    e.life-=dT*1.2;if(e.life<=0) return;
+    const r=e.maxR*(1-e.life);
+    const eg=g.createRadialGradient(e.x,e.y,0,e.x,e.y,r);
+    eg.addColorStop(0,`rgba(255,210,60,${a*e.life*.9})`);
+    eg.addColorStop(.4,`rgba(220,75,10,${a*e.life*.5})`);
+    eg.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=eg;g.beginPath();g.arc(e.x,e.y,Math.max(1,r),0,TAU);g.fill();
+  });
+  for(let i=EXPL.length-1;i>=0;i--) if(EXPL[i].life<=0) EXPL.splice(i,1);
+  g.restore();
+
+  // Repülők
+  g.save();g.fillStyle=`rgba(20,18,15,${a})`;
+  for(let i=0;i<3;i++){
+    const px=((i*.3+.15+T*.018*(i%2?1:-.8))%1.1-.05)*W;
+    const py=(.16+i*.06+Math.sin(T*.7+i)*.02)*H;
+    const dir=i%2?1:-1;
+    g.save();g.translate(px,py);g.scale(dir,1);
+    g.beginPath();g.ellipse(0,0,W*.02,H*.006,0,0,TAU);g.fill();
+    g.beginPath();g.moveTo(-W*.004,-H*.008);g.lineTo(W*.018,0);g.lineTo(-W*.004,H*.008);g.closePath();g.fill();
+    g.restore();
+  }
+  g.restore();
+
+  // Eső
+  g.save();g.strokeStyle=`rgba(120,130,145,${a*.18})`;g.lineWidth=.6;
+  RAIN.forEach(r=>{
+    r.x+=35*dT;r.y+=500*dT;r.life-=dT;
+    if(r.life<0){r.x=Math.random()*W;r.y=-5;r.life=.6+Math.random()*.4;}
+    g.beginPath();g.moveTo(r.x,r.y);g.lineTo(r.x+35*.04,r.y+500*.04);g.stroke();
+  });
+  g.restore();
+
+  g.fillStyle=`rgba(5,4,3,${a})`;g.fillRect(0,H*.62,W,H*.38);
+}
+
+// ── Dombháttér segéd ─────────────────────────────────────────────────────────
+function _hills(layers,a){
+  layers.forEach(([yf,col])=>{
+    g.beginPath();g.moveTo(0,H);
+    const off=T*.01;
+    for(let x=0;x<=W;x+=4){
+      const n=fbm(x/W*2.5+off,yf)*H*.035;
+      const w=Math.sin(x/W*4.5+off+yf*10)*H*.025;
+      g.lineTo(x,yf*H+w+n);
+    }
+    g.lineTo(W,H);g.closePath();
+    g.fillStyle=col.replace('X',String(a));g.fill();
+  });
+}
+
+// ── Főhurok ───────────────────────────────────────────────────────────────────
+function frame(ts){
+  if(!prev)prev=ts;
+  dT=Math.min((ts-prev)/1000,.05);prev=ts;T+=dT;st+=dT;
+  if(st>DUR) nextScene();
+
+  const raw=st<FADE?st/FADE:(st>DUR-FADE?(DUR-st)/FADE:1);
+  const alpha=Math.max(0,Math.min(1,raw));
+
+  g.clearRect(0,0,W,H);
+
+  // Cross-fade: előző jelenet halványan
+  if(raw<1&&st<FADE){
+    SCENES[(si-1+SCENES.length)%SCENES.length].fn(1-raw);
+  }
+
+  SCENES[si].fn(alpha);
+  vignette();
+  grain();
+
+  requestAnimationFrame(frame);
+}
+
+eraEl.style.opacity='1';
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
